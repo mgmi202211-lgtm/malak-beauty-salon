@@ -115,7 +115,15 @@ export default function CustomersPage() {
 
         <tbody>
           {customers
-  .filter((customer) =>
+  .filter((customer) => {
+  const searchText = search.trim().toLowerCase();
+
+  return (
+    customer.full_name?.toLowerCase().includes(searchText) ||
+    customer.phone?.includes(searchText) ||
+    customer.customer_code?.toLowerCase().includes(searchText)
+  );
+})
     customer.full_name?.includes(search) ||
     customer.phone?.includes(search)
   )
