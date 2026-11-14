@@ -213,6 +213,13 @@ async function deleteCustomer(customer) {
   >
     تعديل
   </button>
+                                  <button
+  type="button"
+  onClick={() => deleteCustomer(customer)}
+  style={{ margin: "5px", padding: "8px 15px" }}
+>
+  حذف
+</button>
 </td>
               </tr>
             ))
