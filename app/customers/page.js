@@ -10,7 +10,7 @@ export default function CustomersPage() {
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-
+  const [search, setSearch] = useState("");
   async function loadCustomers() {
     const { data, error } = await supabase
       .from("customers")
