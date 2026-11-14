@@ -159,6 +159,14 @@ function startEditing(customer) {
                 <td>{customer.customer_code}</td>
                 <td>{customer.full_name}</td>
                 <td>{customer.phone}</td>
+              <td>
+  <button
+    type="button"
+    onClick={() => startEditing(customer)}
+  >
+    تعديل
+  </button>
+</td>
               </tr>
             ))
           ) : (
