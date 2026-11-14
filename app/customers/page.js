@@ -138,7 +138,15 @@ function cancelEditing() {
          {editingId ? "حفظ التعديل" : "إضافة عميل"}
         </button>
       </form>
-
+{editingId && (
+  <button
+    type="button"
+    onClick={cancelEditing}
+    style={{ padding: "12px 25px", margin: "5px" }}
+  >
+    إلغاء التعديل
+  </button>
+)}
       <p>{message}</p>
 
       <h2>قائمة العملاء</h2>
