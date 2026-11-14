@@ -149,6 +149,7 @@ function startEditing(customer) {
             <th>كود العميل</th>
             <th>اسم العميل</th>
             <th>رقم الهاتف</th>
+        <th>الإجراءات</th>
           </tr>
         </thead>
 
