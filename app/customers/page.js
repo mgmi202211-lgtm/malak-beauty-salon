@@ -101,7 +101,7 @@ function startEditing(customer) {
     }}>
       <h1>إدارة العملاء - صالون ملك</h1>
 
-      <form onSubmit={addCustomer}>
+      <form onSubmit={editingId ? updateCustomer : addCustomer}>
         <input
           placeholder="اسم العميل"
           value={name}
