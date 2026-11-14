@@ -135,9 +135,14 @@ function cancelEditing() {
           disabled={loading}
           style={{ padding: "12px 25px", margin: "5px" }}
         >
-         {editingId ? "حفظ التعديل" : "إضافة عميل"}
-        </button>
-      </form>
+<button
+  type="submit"
+  disabled={loading}
+  style={{ padding: "12px 25px", margin: "5px" }}
+>
+  {editingId ? "حفظ التعديل" : "إضافة عميل"}
+</button>
+
 {editingId && (
   <button
     type="button"
@@ -147,6 +152,7 @@ function cancelEditing() {
     إلغاء التعديل
   </button>
 )}
+</form>
       <p>{message}</p>
 
       <h2>قائمة العملاء</h2>
