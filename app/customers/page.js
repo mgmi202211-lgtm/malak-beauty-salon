@@ -12,6 +12,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
+
   async function loadCustomers() {
     const { data, error } = await supabase
       .from("customers")
@@ -54,66 +55,73 @@ export default function CustomersPage() {
     setMessage("تمت إضافة العميل بنجاح");
     await loadCustomers();
   }
-async function updateCustomer(e) {
-  e.preventDefault();
 
-  const { error } = await supabase
-    .from("customers")
-    .update({
-      full_name: name,
-      phone: phone
-    })
-    .eq("id", editingId);
+  async function updateCustomer(e) {
+    e.preventDefault();
+    setLoading(true);
 
-  if (error) {
-    setMessage("تعذر تعديل العميل: " + error.message);
-    return;
+    const { error } = await supabase
+      .from("customers")
+      .update({
+        full_name: name,
+        phone: phone
+      })
+      .eq("id", editingId);
+
+    setLoading(false);
+
+    if (error) {
+      setMessage("تعذر تعديل العميل: " + error.message);
+      return;
+    }
+
+    setEditingId(null);
+    setName("");
+    setPhone("");
+    setMessage("تم تعديل بيانات العميل بنجاح");
+    await loadCustomers();
   }
 
-  setEditingId(null);
-  setName("");
-  setPhone("");
-  setMessage("تم تعديل بيانات العميل بنجاح");
-  await loadCustomers();
-}
+  function startEditing(customer) {
+    setEditingId(customer.id);
+    setName(customer.full_name || "");
+    setPhone(customer.phone || "");
+    setMessage("");
+  }
 
-function startEditing(customer) {
-  setEditingId(customer.id);
-  setName(customer.full_name || "");
-  setPhone(customer.phone || "");
-}
-function cancelEditing() {
-  setEditingId(null);
-  setName("");
-  setPhone("");
-  setMessage("");
-}
   function cancelEditing() {
-  setEditingId(null);
-  setName("");
-  setPhone("");
-  setMessage("");
-}
-async function deleteCustomer(customer) {
-  const confirmed = window.confirm(
-    "هل أنت متأكد من حذف العميل: " + customer.full_name + "؟"
-  );
-
-  if (!confirmed) return;
-
-  const { error } = await supabase
-    .from("customers")
-    .delete()
-    .eq("id", customer.id);
-
-  if (error) {
-    setMessage("تعذر حذف العميل: " + error.message);
-    return;
+    setEditingId(null);
+    setName("");
+    setPhone("");
+    setMessage("");
   }
 
-  setMessage("تم حذف العميل بنجاح");
-  await loadCustomers();
-}
+  async function deleteCustomer(customer) {
+    const confirmed = window.confirm(
+      "هل أنت متأكد من حذف العميل: " +
+      customer.full_name + "؟"
+    );
+
+    if (!confirmed) return;
+
+    const { error } = await supabase
+      .from("customers")
+      .delete()
+      .eq("id", customer.id);
+
+    if (error) {
+      setMessage("تعذر حذف العميل: " + error.message);
+      return;
+    }
+
+    if (editingId === customer.id) {
+      cancelEditing();
+    }
+
+    setMessage("تم حذف العميل بنجاح");
+    await loadCustomers();
+  }
+
   const filteredCustomers = customers.filter((customer) => {
     const searchText = search.trim().toLowerCase();
 
@@ -155,24 +163,24 @@ async function deleteCustomer(customer) {
           disabled={loading}
           style={{ padding: "12px 25px", margin: "5px" }}
         >
-<button
-  type="submit"
-  disabled={loading}
-  style={{ padding: "12px 25px", margin: "5px" }}
->
-  {editingId ? "حفظ التعديل" : "إضافة عميل"}
-</button>
+          {loading
+            ? "جارٍ الحفظ..."
+            : editingId
+              ? "حفظ التعديل"
+              : "إضافة عميل"}
+        </button>
 
-{editingId && (
-  <button
-    type="button"
-    onClick={cancelEditing}
-    style={{ padding: "12px 25px", margin: "5px" }}
-  >
-    إلغاء التعديل
-  </button>
-)}
-</form>
+        {editingId && (
+          <button
+            type="button"
+            onClick={cancelEditing}
+            style={{ padding: "12px 25px", margin: "5px" }}
+          >
+            إلغاء التعديل
+          </button>
+        )}
+      </form>
+
       <p>{message}</p>
 
       <h2>قائمة العملاء</h2>
@@ -195,7 +203,7 @@ async function deleteCustomer(customer) {
             <th>كود العميل</th>
             <th>اسم العميل</th>
             <th>رقم الهاتف</th>
-        <th>الإجراءات</th>
+            <th>الإجراءات</th>
           </tr>
         </thead>
 
@@ -206,26 +214,27 @@ async function deleteCustomer(customer) {
                 <td>{customer.customer_code}</td>
                 <td>{customer.full_name}</td>
                 <td>{customer.phone}</td>
-              <td>
-  <button
-    type="button"
-    onClick={() => startEditing(customer)}
-  >
-    تعديل
-  </button>
-                                  <button
-  type="button"
-  onClick={() => deleteCustomer(customer)}
-  style={{ margin: "5px", padding: "8px 15px" }}
->
-  حذف
-</button>
-</td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => startEditing(customer)}
+                  >
+                    تعديل
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteCustomer(customer)}
+                    style={{ margin: "5px", padding: "8px 15px" }}
+                  >
+                    حذف
+                  </button>
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-             <td colSpan="4">لا توجد نتائج مطابقة</td>
+              <td colSpan="4">لا توجد نتائج مطابقة</td>
             </tr>
           )}
         </tbody>
