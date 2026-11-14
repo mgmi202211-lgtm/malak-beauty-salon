@@ -11,7 +11,7 @@ export default function CustomersPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-
+  const [editingId, setEditingId] = useState(null);
   async function loadCustomers() {
     const { data, error } = await supabase
       .from("customers")
