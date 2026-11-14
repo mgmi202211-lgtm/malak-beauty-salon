@@ -54,7 +54,34 @@ export default function CustomersPage() {
     setMessage("تمت إضافة العميل بنجاح");
     await loadCustomers();
   }
+async function updateCustomer(e) {
+  e.preventDefault();
 
+  const { error } = await supabase
+    .from("customers")
+    .update({
+      full_name: name,
+      phone: phone
+    })
+    .eq("id", editingId);
+
+  if (error) {
+    setMessage("تعذر تعديل العميل: " + error.message);
+    return;
+  }
+
+  setEditingId(null);
+  setName("");
+  setPhone("");
+  setMessage("تم تعديل بيانات العميل بنجاح");
+  await loadCustomers();
+}
+
+function startEditing(customer) {
+  setEditingId(customer.id);
+  setName(customer.full_name || "");
+  setPhone(customer.phone || "");
+}
   const filteredCustomers = customers.filter((customer) => {
     const searchText = search.trim().toLowerCase();
 
