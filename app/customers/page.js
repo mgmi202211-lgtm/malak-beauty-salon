@@ -172,7 +172,7 @@ function startEditing(customer) {
             ))
           ) : (
             <tr>
-              <td colSpan="3">لا توجد نتائج مطابقة</td>
+             <td colSpan="4">لا توجد نتائج مطابقة</td>
             </tr>
           )}
         </tbody>
