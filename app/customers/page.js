@@ -93,6 +93,17 @@ export default function CustomersPage() {
 
       <h2>قائمة العملاء</h2>
 
+<input
+  placeholder="ابحث بالاسم أو رقم الهاتف"
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+  style={{
+    padding: "12px",
+    width: "100%",
+    marginBottom: "15px"
+  }}
+/>
+
       <table width="100%" border="1" cellPadding="10">
         <thead>
           <tr>
