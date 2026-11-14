@@ -1,1 +1,118 @@
 
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabase";
+
+export default function CustomersPage() {
+  const [customers, setCustomers] = useState([]);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function loadCustomers() {
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage("خطأ في تحميل العملاء: " + error.message);
+      return;
+    }
+
+    setCustomers(data || []);
+  }
+
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  async function addCustomer(e) {
+    e.preventDefault();
+    setLoading(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("customers")
+      .insert({
+        full_name: name,
+        phone: phone
+      });
+
+    setLoading(false);
+
+    if (error) {
+      setMessage("تعذر إضافة العميل: " + error.message);
+      return;
+    }
+
+    setName("");
+    setPhone("");
+    setMessage("تمت إضافة العميل بنجاح");
+    loadCustomers();
+  }
+
+  return (
+    <main dir="rtl" style={{
+      maxWidth: "900px",
+      margin: "30px auto",
+      padding: "20px",
+      fontFamily: "Arial"
+    }}>
+      <h1>إدارة العملاء - صالون ملك</h1>
+
+      <form onSubmit={addCustomer}>
+        <input
+          placeholder="اسم العميل"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          style={{ padding: "12px", margin: "5px", width: "40%" }}
+        />
+
+        <input
+          placeholder="رقم الهاتف"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          required
+          style={{ padding: "12px", margin: "5px", width: "40%" }}
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{ padding: "12px 25px", margin: "5px" }}
+        >
+          {loading ? "جاري الحفظ..." : "إضافة عميل"}
+        </button>
+      </form>
+
+      <p>{message}</p>
+
+      <h2>قائمة العملاء</h2>
+
+      <table width="100%" border="1" cellPadding="10">
+        <thead>
+          <tr>
+            <th>كود العميل</th>
+            <th>اسم العميل</th>
+            <th>رقم الهاتف</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {customers.map((customer) => (
+            <tr key={customer.id}>
+              <td>{customer.customer_code}</td>
+              <td>{customer.full_name}</td>
+              <td>{customer.phone}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </main>
+  );
+}
+
