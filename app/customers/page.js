@@ -114,7 +114,18 @@ export default function CustomersPage() {
         </thead>
 
         <tbody>
-          {customers.map((customer) => (
+          {customers
+  .filter((customer) =>
+    customer.full_name?.includes(search) ||
+    customer.phone?.includes(search)
+  )
+  .map((customer) => (
+    <tr key={customer.id}>
+      <td>{customer.customer_code}</td>
+      <td>{customer.full_name}</td>
+      <td>{customer.phone}</td>
+    </tr>
+  ))}
             <tr key={customer.id}>
               <td>{customer.customer_code}</td>
               <td>{customer.full_name}</td>
