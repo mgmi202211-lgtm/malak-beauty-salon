@@ -94,6 +94,26 @@ function cancelEditing() {
   setPhone("");
   setMessage("");
 }
+async function deleteCustomer(customer) {
+  const confirmed = window.confirm(
+    "هل أنت متأكد من حذف العميل: " + customer.full_name + "؟"
+  );
+
+  if (!confirmed) return;
+
+  const { error } = await supabase
+    .from("customers")
+    .delete()
+    .eq("id", customer.id);
+
+  if (error) {
+    setMessage("تعذر حذف العميل: " + error.message);
+    return;
+  }
+
+  setMessage("تم حذف العميل بنجاح");
+  await loadCustomers();
+}
   const filteredCustomers = customers.filter((customer) => {
     const searchText = search.trim().toLowerCase();
 
