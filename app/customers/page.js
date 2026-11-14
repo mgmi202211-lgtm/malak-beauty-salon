@@ -11,6 +11,7 @@ export default function CustomersPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+
   async function loadCustomers() {
     const { data, error } = await supabase
       .from("customers")
@@ -51,8 +52,18 @@ export default function CustomersPage() {
     setName("");
     setPhone("");
     setMessage("تمت إضافة العميل بنجاح");
-    loadCustomers();
+    await loadCustomers();
   }
+
+  const filteredCustomers = customers.filter((customer) => {
+    const searchText = search.trim().toLowerCase();
+
+    return (
+      (customer.full_name || "").toLowerCase().includes(searchText) ||
+      (customer.phone || "").includes(searchText) ||
+      (customer.customer_code || "").toLowerCase().includes(searchText)
+    );
+  });
 
   return (
     <main dir="rtl" style={{
@@ -93,16 +104,17 @@ export default function CustomersPage() {
 
       <h2>قائمة العملاء</h2>
 
-<input
-  placeholder="ابحث بالاسم أو رقم الهاتف"
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  style={{
-    padding: "12px",
-    width: "100%",
-    marginBottom: "15px"
-  }}
-/>
+      <input
+        placeholder="ابحث بالاسم أو رقم الهاتف أو كود العميل"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{
+          padding: "12px",
+          width: "100%",
+          marginBottom: "15px",
+          boxSizing: "border-box"
+        }}
+      />
 
       <table width="100%" border="1" cellPadding="10">
         <thead>
@@ -114,35 +126,21 @@ export default function CustomersPage() {
         </thead>
 
         <tbody>
-          {customers
-  .filter((customer) => {
-  const searchText = search.trim().toLowerCase();
-
-  return (
-    customer.full_name?.toLowerCase().includes(searchText) ||
-    customer.phone?.includes(searchText) ||
-    customer.customer_code?.toLowerCase().includes(searchText)
-  );
-})
-    customer.full_name?.includes(search) ||
-    customer.phone?.includes(search)
-  )
-  .map((customer) => (
-    <tr key={customer.id}>
-      <td>{customer.customer_code}</td>
-      <td>{customer.full_name}</td>
-      <td>{customer.phone}</td>
-    </tr>
-  ))}
-            <tr key={customer.id}>
-              <td>{customer.customer_code}</td>
-              <td>{customer.full_name}</td>
-              <td>{customer.phone}</td>
+          {filteredCustomers.length > 0 ? (
+            filteredCustomers.map((customer) => (
+              <tr key={customer.id}>
+                <td>{customer.customer_code}</td>
+                <td>{customer.full_name}</td>
+                <td>{customer.phone}</td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="3">لا توجد نتائج مطابقة</td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </main>
   );
 }
-
