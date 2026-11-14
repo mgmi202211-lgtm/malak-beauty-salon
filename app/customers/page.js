@@ -88,6 +88,12 @@ function cancelEditing() {
   setPhone("");
   setMessage("");
 }
+  function cancelEditing() {
+  setEditingId(null);
+  setName("");
+  setPhone("");
+  setMessage("");
+}
   const filteredCustomers = customers.filter((customer) => {
     const searchText = search.trim().toLowerCase();
 
