@@ -51,17 +51,41 @@ export default function BookingsPage() {
     loadData();
   }, []);
 
-  const filteredCustomers = customers.filter((customer) =>
-    (customer.phone || "").includes(customerSearch.trim())
-  );
+  // البحث عن العميلة تلقائيًا برقم التليفون
+  const normalizedSearch = customerSearch.replace(/\D/g, "");
+
+  const matchedCustomers = normalizedSearch
+    ? customers.filter((customer) => {
+        const phone = String(customer.phone || "").replace(/\D/g, "");
+        return phone === normalizedSearch;
+      })
+    : [];
+
+  const matchedCustomer =
+    matchedCustomers.length === 1 ? matchedCustomers[0] : null;
+
+  // تحديث العميل المختار تلقائيًا
+  useEffect(() => {
+    if (matchedCustomer) {
+      setCustomerId(String(matchedCustomer.id));
+    } else {
+      setCustomerId("");
+    }
+  }, [customerSearch, customers]);
 
   async function addBooking(e) {
     e.preventDefault();
     setLoading(true);
     setMessage("");
 
+    if (!matchedCustomer) {
+      setLoading(false);
+      setMessage("رقم التليفون غير موجود في قائمة العملاء.");
+      return;
+    }
+
     const { error } = await supabase.from("bookings").insert({
-      customer_id: customerId,
+      customer_id: matchedCustomer.id,
       service_id: serviceId,
       booking_date: date,
       booking_time: time,
@@ -154,44 +178,42 @@ export default function BookingsPage() {
           border: "1px solid #f0d5e2",
         }}
       >
-        <p>ابحث برقم تليفون العميلة</p>
+        <p>رقم تليفون العميلة</p>
 
         <input
           type="tel"
           value={customerSearch}
-          onChange={(e) => {
-            setCustomerSearch(e.target.value);
-            setCustomerId("");
-          }}
-          placeholder="اكتب رقم التليفون للبحث"
+          onChange={(e) => setCustomerSearch(e.target.value)}
+          placeholder="اكتبي رقم التليفون"
           style={inputStyle}
+          required
         />
 
-        <select
-          value={customerId}
-          onChange={(e) => setCustomerId(e.target.value)}
-          required
-          style={inputStyle}
-        >
-          <option value="">اختاري العميلة</option>
-
-          {filteredCustomers.map((customer) => (
-            <option key={customer.id} value={customer.id}>
-              {customer.phone} - {customer.full_name}
-            </option>
-          ))}
-        </select>
-
-        {customerId && (
-          <p style={{ color: "#9d174d", fontWeight: "bold" }}>
-            العميلة المختارة: {
-              customers.find(
-                (customer) =>
-                  String(customer.id) === String(customerId)
-              )?.full_name
-            }
+        {matchedCustomer ? (
+          <p
+            style={{
+              color: "#15803d",
+              fontWeight: "bold",
+              background: "#f0fdf4",
+              padding: 12,
+              borderRadius: 8,
+            }}
+          >
+            <span>✓ اسم العميلة: </span>
+            {matchedCustomer.full_name}
           </p>
-        )}
+        ) : normalizedSearch ? (
+          <p
+            style={{
+              color: "#b45309",
+              fontWeight: "bold",
+            }}
+          >
+            {matchedCustomers.length > 1
+              ? "يوجد أكثر من عميلة بهذا الرقم، يرجى مراجعة بيانات العملاء."
+              : "رقم التليفون غير مسجل في قائمة العملاء."}
+          </p>
+        ) : null}
 
         <p>اختيار الخدمة</p>
 
@@ -241,7 +263,7 @@ export default function BookingsPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !matchedCustomer}
           style={{
             padding: 12,
             marginTop: 15,
@@ -252,6 +274,7 @@ export default function BookingsPage() {
             borderRadius: 8,
             cursor: "pointer",
             fontWeight: "bold",
+            opacity: loading || !matchedCustomer ? 0.6 : 1,
           }}
         >
           {loading ? "جارٍ الحفظ..." : "إضافة الحجز"}
@@ -328,7 +351,6 @@ export default function BookingsPage() {
                   </td>
 
                   <td>{booking.booking_date}</td>
-
                   <td>{booking.booking_time}</td>
 
                   <td>
