@@ -9,9 +9,11 @@ export default function BookingsPage() {
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [customerId, setCustomerId] = useState("");
+  const [bookingServices, setBookingServices] = useState([]);
+
   const [customerSearch, setCustomerSearch] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [selectedServices, setSelectedServices] = useState([]);
+  const [currentService, setCurrentService] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -19,39 +21,41 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(false);
 
   async function loadData() {
-    const [customerResult, serviceResult, bookingResult] =
-      await Promise.all([
-        supabase.from("customers").select("*").order("full_name"),
-        supabase.from("services").select("*").eq("active", true),
-        supabase.from("bookings").select("*").order("booking_date", {
-          ascending: false,
-        }),
-      ]);
+    const [
+      customerResult,
+      serviceResult,
+      bookingResult,
+      bookingServicesResult,
+    ] = await Promise.all([
+      supabase.from("customers").select("*").order("full_name"),
+      supabase.from("services").select("*").eq("active", true),
+      supabase.from("bookings").select("*").order("booking_date", {
+        ascending: false,
+      }),
+      supabase.from("booking_services").select("*"),
+    ]);
 
-    if (
+    const error =
       customerResult.error ||
       serviceResult.error ||
-      bookingResult.error
-    ) {
-      setMessage(
-        "خطأ في تحميل البيانات: " +
-          (customerResult.error?.message ||
-            serviceResult.error?.message ||
-            bookingResult.error?.message)
-      );
+      bookingResult.error ||
+      bookingServicesResult.error;
+
+    if (error) {
+      setMessage("خطأ في تحميل البيانات: " + error.message);
       return;
     }
 
     setCustomers(customerResult.data || []);
     setServices(serviceResult.data || []);
     setBookings(bookingResult.data || []);
+    setBookingServices(bookingServicesResult.data || []);
   }
 
   useEffect(() => {
     loadData();
   }, []);
 
-  // البحث عن العميلة تلقائيًا برقم التليفون
   const normalizedSearch = customerSearch.replace(/\D/g, "");
 
   const matchedCustomers = normalizedSearch
@@ -64,49 +68,113 @@ export default function BookingsPage() {
   const matchedCustomer =
     matchedCustomers.length === 1 ? matchedCustomers[0] : null;
 
-  // تحديث العميل المختار تلقائيًا
-  useEffect(() => {
-    if (matchedCustomer) {
-      setCustomerId(String(matchedCustomer.id));
-    } else {
-      setCustomerId("");
+  function addSelectedService() {
+    const service = services.find(
+      (item) => String(item.id) === String(currentService)
+    );
+
+    if (!service) return;
+
+    if (
+      selectedServices.some(
+        (item) => String(item.id) === String(service.id)
+      )
+    ) {
+      setMessage("الخدمة مضافة بالفعل.");
+      return;
     }
-  }, [customerSearch, customers]);
+
+    setSelectedServices((previous) => [
+      ...previous,
+      {
+        id: service.id,
+        name: service.service_name,
+        price: Number(service.price) || 0,
+      },
+    ]);
+
+    setCurrentService("");
+    setMessage("");
+  }
+
+  function removeSelectedService(id) {
+    setSelectedServices((previous) =>
+      previous.filter((item) => String(item.id) !== String(id))
+    );
+  }
+
+  const totalPrice = selectedServices.reduce(
+    (sum, item) => sum + item.price,
+    0
+  );
 
   async function addBooking(e) {
     e.preventDefault();
-    setLoading(true);
-    setMessage("");
 
     if (!matchedCustomer) {
-      setLoading(false);
       setMessage("رقم التليفون غير موجود في قائمة العملاء.");
       return;
     }
 
-    const { error } = await supabase.from("bookings").insert({
-      customer_id: matchedCustomer.id,
-      service_id: serviceId,
-      booking_date: date,
-      booking_time: time,
-      status: "pending",
-      notes: notes,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setMessage("تعذر إضافة الحجز: " + error.message);
+    if (selectedServices.length === 0) {
+      setMessage("اختاري خدمة واحدة على الأقل.");
       return;
     }
 
-    setCustomerId("");
+    setLoading(true);
+    setMessage("");
+
+    // حفظ الحجز الأساسي مع أول خدمة للحفاظ على التوافق القديم
+    const { data: booking, error: bookingError } = await supabase
+      .from("bookings")
+      .insert({
+        customer_id: matchedCustomer.id,
+        service_id: selectedServices[0].id,
+        booking_date: date,
+        booking_time: time,
+        status: "pending",
+        notes: notes,
+      })
+      .select()
+      .single();
+
+    if (bookingError) {
+      setLoading(false);
+      setMessage("تعذر إضافة الحجز: " + bookingError.message);
+      return;
+    }
+
+    // حفظ جميع الخدمات وأسعارها
+    const rows = selectedServices.map((service) => ({
+      booking_id: booking.id,
+      service_id: service.id,
+      price: service.price,
+    }));
+
+    const { error: servicesError } = await supabase
+      .from("booking_services")
+      .insert(rows);
+
+    if (servicesError) {
+      // منع بقاء حجز ناقص إذا فشل حفظ الخدمات
+      await supabase
+        .from("bookings")
+        .delete()
+        .eq("id", booking.id);
+
+      setLoading(false);
+      setMessage("تعذر حفظ خدمات الحجز: " + servicesError.message);
+      return;
+    }
+
+    setLoading(false);
     setCustomerSearch("");
-    setServiceId("");
+    setSelectedServices([]);
+    setCurrentService("");
     setDate("");
     setTime("");
     setNotes("");
-    setMessage("تم إضافة الحجز بنجاح");
+    setMessage("تم إضافة الحجز وجميع الخدمات بنجاح.");
 
     await loadData();
   }
@@ -120,7 +188,7 @@ export default function BookingsPage() {
     if (error) {
       setMessage("تعذر تعديل حالة الحجز: " + error.message);
     } else {
-      setMessage("تم تعديل حالة الحجز");
+      setMessage("تم تعديل حالة الحجز.");
       await loadData();
     }
   }
@@ -133,6 +201,36 @@ export default function BookingsPage() {
     borderRadius: 8,
     marginTop: 5,
   };
+
+  function getBookingServices(booking) {
+    const savedServices = bookingServices.filter(
+      (item) => String(item.booking_id) === String(booking.id)
+    );
+
+    if (savedServices.length > 0) {
+      return savedServices.map((item) => {
+        const service = services.find(
+          (s) => String(s.id) === String(item.service_id)
+        );
+
+        return {
+          name: service?.service_name || `خدمة رقم ${item.service_id}`,
+          price: Number(item.price) || 0,
+        };
+      });
+    }
+
+    const oldService = services.find(
+      (item) => String(item.id) === String(booking.service_id)
+    );
+
+    return [
+      {
+        name: oldService?.service_name || `خدمة رقم ${booking.service_id}`,
+        price: Number(oldService?.price) || 0,
+      },
+    ];
+  }
 
   return (
     <main
@@ -190,47 +288,104 @@ export default function BookingsPage() {
         />
 
         {matchedCustomer ? (
-          <p
-            style={{
-              color: "#15803d",
-              fontWeight: "bold",
-              background: "#f0fdf4",
-              padding: 12,
-              borderRadius: 8,
-            }}
-          >
-            <span>✓ اسم العميلة: </span>
-            {matchedCustomer.full_name}
+          <p style={{
+            color: "#15803d",
+            fontWeight: "bold",
+            background: "#f0fdf4",
+            padding: 12,
+            borderRadius: 8,
+          }}>
+            ✓ اسم العميلة: {matchedCustomer.full_name}
           </p>
         ) : normalizedSearch ? (
-          <p
-            style={{
-              color: "#b45309",
-              fontWeight: "bold",
-            }}
-          >
+          <p style={{ color: "#b45309", fontWeight: "bold" }}>
             {matchedCustomers.length > 1
-              ? "يوجد أكثر من عميلة بهذا الرقم، يرجى مراجعة بيانات العملاء."
+              ? "يوجد أكثر من عميلة بهذا الرقم."
               : "رقم التليفون غير مسجل في قائمة العملاء."}
           </p>
         ) : null}
 
-        <p>اختيار الخدمة</p>
+        <p>اختيار الخدمات</p>
 
         <select
-          value={serviceId}
-          onChange={(e) => setServiceId(e.target.value)}
-          required
+          value={currentService}
+          onChange={(e) => setCurrentService(e.target.value)}
           style={inputStyle}
         >
           <option value="">اختاري الخدمة</option>
-
           {services.map((service) => (
             <option key={service.id} value={service.id}>
               {service.service_name} - {service.price} جنيه
             </option>
           ))}
         </select>
+
+        <button
+          type="button"
+          onClick={addSelectedService}
+          disabled={!currentService}
+          style={{
+            padding: 12,
+            marginTop: 10,
+            width: "100%",
+            background: "#7c3aed",
+            color: "white",
+            border: "none",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        >
+          + إضافة الخدمة
+        </button>
+
+        {selectedServices.length > 0 && (
+          <div style={{
+            marginTop: 15,
+            padding: 15,
+            background: "white",
+            borderRadius: 8,
+            border: "1px solid #e5c5d5",
+          }}>
+            <h3>الخدمات المختارة</h3>
+
+            {selectedServices.map((service) => (
+              <div
+                key={service.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: 10,
+                  borderBottom: "1px solid #f0d5e2",
+                }}
+              >
+                <span>
+                  {service.name} - {service.price} جنيه
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => removeSelectedService(service.id)}
+                  style={{
+                    background: "#dc2626",
+                    color: "white",
+                    border: "none",
+                    padding: "7px 12px",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  حذف
+                </button>
+              </div>
+            ))}
+
+            <h3 style={{ color: "#9d174d" }}>
+              إجمالي الحجز: {totalPrice.toFixed(2)} جنيه
+            </h3>
+          </div>
+        )}
 
         <p>تاريخ الحجز</p>
 
@@ -263,7 +418,7 @@ export default function BookingsPage() {
 
         <button
           type="submit"
-          disabled={loading || !matchedCustomer}
+          disabled={loading || !matchedCustomer || selectedServices.length === 0}
           style={{
             padding: 12,
             marginTop: 15,
@@ -274,7 +429,7 @@ export default function BookingsPage() {
             borderRadius: 8,
             cursor: "pointer",
             fontWeight: "bold",
-            opacity: loading || !matchedCustomer ? 0.6 : 1,
+            opacity: loading || !matchedCustomer || selectedServices.length === 0 ? 0.6 : 1,
           }}
         >
           {loading ? "جارٍ الحفظ..." : "إضافة الحجز"}
@@ -282,15 +437,13 @@ export default function BookingsPage() {
       </form>
 
       {message && (
-        <p
-          style={{
-            padding: 12,
-            background: "#fff0f6",
-            color: "#9d174d",
-            borderRadius: 8,
-            marginTop: 15,
-          }}
-        >
+        <p style={{
+          padding: 12,
+          background: "#fff0f6",
+          color: "#9d174d",
+          borderRadius: 8,
+          marginTop: 15,
+        }}>
           {message}
         </p>
       )}
@@ -318,7 +471,8 @@ export default function BookingsPage() {
             <tr>
               <th>رقم الحجز</th>
               <th>كود العميلة</th>
-              <th>الخدمة</th>
+              <th>الخدمات</th>
+              <th>الإجمالي</th>
               <th>التاريخ</th>
               <th>الوقت</th>
               <th>الحالة</th>
@@ -329,13 +483,13 @@ export default function BookingsPage() {
           <tbody>
             {bookings.map((booking) => {
               const customer = customers.find(
-                (item) =>
-                  String(item.id) === String(booking.customer_id)
+                (item) => String(item.id) === String(booking.customer_id)
               );
 
-              const service = services.find(
-                (item) =>
-                  String(item.id) === String(booking.service_id)
+              const items = getBookingServices(booking);
+              const total = items.reduce(
+                (sum, item) => sum + item.price,
+                0
               );
 
               return (
@@ -347,9 +501,14 @@ export default function BookingsPage() {
                   </td>
 
                   <td>
-                    {service?.service_name || booking.service_id}
+                    {items.map((item, index) => (
+                      <div key={index}>
+                        {item.name}
+                      </div>
+                    ))}
                   </td>
 
+                  <td>{total.toFixed(2)} جنيه</td>
                   <td>{booking.booking_date}</td>
                   <td>{booking.booking_time}</td>
 
@@ -380,9 +539,7 @@ export default function BookingsPage() {
 
             {bookings.length === 0 && (
               <tr>
-                <td colSpan="7">
-                  لا توجد حجوزات حتى الآن
-                </td>
+                <td colSpan="8">لا توجد حجوزات حتى الآن</td>
               </tr>
             )}
           </tbody>
