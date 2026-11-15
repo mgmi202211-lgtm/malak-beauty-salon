@@ -1,242 +1,273 @@
 
-"use client";
+  "use client";
+  import Link from "next/link";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+  import { useEffect, useState } from "react";
+  import { supabase } from "../../lib/supabase";
 
-export default function ServicesPage() {
-  const [services, setServices] = useState([]);
-  const [category, setCategory] = useState("");
-  const [serviceName, setServiceName] = useState("");
-  const [price, setPrice] = useState("");
-  const [editingId, setEditingId] = useState(null);
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  export default function ServicesPage() {
+    const [services, setServices] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [message, setMessage] = useState("");
+    const [editingId, setEditingId] = useState(null);
 
-  async function loadServices() {
-    const { data, error } = await supabase
-      .from("services")
-      .select("*")
-      .order("category", { ascending: true })
-      .order("service_name", { ascending: true });
+    const [form, setForm] = useState({
+      service_name: "",
+      category: "",
+      price: "",
+      active: true,
+    });
 
-    if (error) {
-      setMessage("خطأ في تحميل الخدمات: " + error.message);
-      return;
+    async function loadServices() {
+      setLoading(true);
+
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setMessage("خطأ في تحميل الخدمات: " + error.message);
+      } else {
+        setServices(data || []);
+        setMessage("");
+      }
+
+      setLoading(false);
     }
 
-    setServices(data || []);
-  }
+    useEffect(() => {
+      loadServices();
+    }, []);
 
-  useEffect(() => {
-    loadServices();
-  }, []);
-
-  function cancelEditing() {
-    setEditingId(null);
-    setCategory("");
-    setServiceName("");
-    setPrice("");
-    setMessage("");
-  }
-
-  function startEditing(service) {
-    setEditingId(service.id);
-    setCategory(service.category || "");
-    setServiceName(service.service_name || "");
-    setPrice(String(service.price ?? ""));
-    setMessage("");
-  }
-
-  async function saveService(e) {
-    e.preventDefault();
-
-    if (!category.trim() || !serviceName.trim() || price === "") {
-      setMessage("من فضلك اكتب التصنيف واسم الخدمة والسعر");
-      return;
+    function resetForm() {
+      setForm({
+        service_name: "",
+        category: "",
+        price: "",
+        active: true,
+      });
+      setEditingId(null);
     }
 
-    const numericPrice = Number(price);
+    async function saveService(e) {
+      e.preventDefault();
+      setMessage("");
 
-    if (!Number.isFinite(numericPrice) || numericPrice < 0) {
-      setMessage("من فضلك أدخل سعرًا صحيحًا");
-      return;
+      if (!form.service_name.trim() || form.price === "") {
+        setMessage("اكتب اسم الخدمة والسعر");
+        return;
+      }
+
+      const price = Number(form.price);
+
+      if (!Number.isFinite(price) || price < 0) {
+        setMessage("راجع السعر المدخل");
+        return;
+      }
+
+      const serviceData = {
+        service_name: form.service_name.trim(),
+        category: form.category.trim(),
+        price,
+        active: form.active,
+      };
+
+      const result = editingId
+        ? await supabase
+            .from("services")
+            .update(serviceData)
+            .eq("id", editingId)
+        : await supabase
+            .from("services")
+            .insert([serviceData]);
+
+      if (result.error) {
+        setMessage("لم يتم الحفظ: " + result.error.message);
+        return;
+      }
+
+      setMessage("تم حفظ الخدمة بنجاح");
+      resetForm();
+      await loadServices();
     }
 
-    setLoading(true);
-    setMessage("");
+    function editService(service) {
+      setEditingId(service.id);
 
-    const serviceData = {
-      category: category.trim(),
-      service_name: serviceName.trim(),
-      price: numericPrice
-    };
+      setForm({
+        service_name: service.service_name || "",
+        category: service.category || "",
+        price: String(service.price ?? ""),
+        active: service.active,
+      });
 
-    const result = editingId
-      ? await supabase
-          .from("services")
-          .update(serviceData)
-          .eq("id", editingId)
-      : await supabase
-          .from("services")
-          .insert({
-            ...serviceData,
-            active: true
-          });
-
-    setLoading(false);
-
-    if (result.error) {
-      setMessage("تعذر حفظ الخدمة: " + result.error.message);
-      return;
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
-    cancelEditing();
-    setMessage(
-      editingId
-        ? "تم تعديل الخدمة بنجاح"
-        : "تمت إضافة الخدمة بنجاح"
-    );
+    async function toggleService(service) {
+      const { error } = await supabase
+        .from("services")
+        .update({ active: !service.active })
+        .eq("id", service.id);
 
-    await loadServices();
-  }
-
-  async function toggleService(service) {
-    const { error } = await supabase
-      .from("services")
-      .update({ active: !service.active })
-      .eq("id", service.id);
-
-    if (error) {
-      setMessage("تعذر تغيير حالة الخدمة: " + error.message);
-      return;
+      if (error) {
+        setMessage("حدث خطأ: " + error.message);
+      } else {
+        await loadServices();
+      }
     }
+    async function deleteService(service) {
+      const confirmed = window.confirm(
+        `هل أنت متأكد من حذف خدمة ${service.service_name}؟`
+      );
 
-    setMessage(
-      service.active
-        ? "تم إيقاف الخدمة"
-        : "تم تفعيل الخدمة"
-    );
+      if (!confirmed) return;
 
-    await loadServices();
-  }
+      const { error } = await supabase
+        .from("services")
+        .delete()
+        .eq("id", service.id);
 
-  return (
-    <main dir="rtl" style={{
-      maxWidth: "950px",
-      margin: "30px auto",
-      padding: "20px",
-      fontFamily: "Arial"
-    }}>
-      <h1>إدارة الخدمات والأسعار - صالون ملك</h1>
+      if (error) {
+        setMessage("حدث خطأ أثناء الحذف: " + error.message);
+      } else {
+        setMessage("تم حذف الخدمة بنجاح");
+        await loadServices();
+      }
+    }
+    return (
+      <main dir="rtl" style={{ padding: 25, maxWidth: 1000, margin: "auto" }}>
+  <div style={{ marginBottom: 20 }}>
+    <Link
+      href="/"
+      style={{
+        display: "inline-block",
+        background: "#9d174d",
+        color: "white",
+        padding: "12px 20px",
+        borderRadius: 10,
+        textDecoration: "none",
+        fontWeight: "bold"
+      }}
+    >
+      🏠 العودة إلى الصفحة الرئيسية
+    </Link>
+  </div>
+        <h1>إدارة خدمات Malak Beauty Salon</h1>
 
-      <form onSubmit={saveService}>
-        <div style={{ marginBottom: "12px" }}>
+        <h2>{editingId ? "تعديل الخدمة" : "إضافة خدمة جديدة"}</h2>
+
+        <form onSubmit={saveService}>
+          <p>اسم الخدمة</p>
           <input
-            placeholder="تصنيف الخدمة - مثال: الشعر"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            required
-            style={{ padding: "12px", width: "100%", boxSizing: "border-box" }}
-          />
-        </div>
-
-        <div style={{ marginBottom: "12px" }}>
-          <input
+            style={{ width: "100%", padding: 10 }}
+            value={form.service_name}
+            onChange={(e) =>
+              setForm({ ...form, service_name: e.target.value })
+            }
             placeholder="اسم الخدمة"
-            value={serviceName}
-            onChange={(e) => setServiceName(e.target.value)}
             required
-            style={{ padding: "12px", width: "100%", boxSizing: "border-box" }}
           />
-        </div>
 
-        <div style={{ marginBottom: "12px" }}>
+          <p>القسم</p>
+          <input
+            style={{ width: "100%", padding: 10 }}
+            value={form.category}
+            onChange={(e) =>
+              setForm({ ...form, category: e.target.value })
+            }
+            placeholder="مثال: الشعر، البشرة، الأظافر"
+          />
+
+          <p>السعر بالجنيه</p>
           <input
             type="number"
             min="0"
-            step="0.01"
-            placeholder="السعر بالجنيه"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
+            style={{ width: "100%", padding: 10 }}
+            value={form.price}
+            onChange={(e) =>
+              setForm({ ...form, price: e.target.value })
+            }
             required
-            style={{ padding: "12px", width: "100%", boxSizing: "border-box" }}
           />
-        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{ padding: "12px 25px", margin: "5px" }}
-        >
-          {loading
-            ? "جارٍ الحفظ..."
-            : editingId
-              ? "حفظ التعديل"
-              : "إضافة خدمة"}
-        </button>
+          <p>
+            <label>
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) =>
+                  setForm({ ...form, active: e.target.checked })
+                }
+              />
+              {" "}الخدمة مفعلة
+            </label>
+          </p>
 
-        {editingId && (
-          <button
-            type="button"
-            onClick={cancelEditing}
-            style={{ padding: "12px 25px", margin: "5px" }}
-          >
-            إلغاء التعديل
+          <button type="submit" style={{ padding: 12, margin: 5 }}>
+            {editingId ? "حفظ التعديل" : "إضافة الخدمة"}
           </button>
-        )}
-      </form>
 
-      <p>{message}</p>
-
-      <h2>قائمة الخدمات والأسعار</h2>
-
-      <table width="100%" border="1" cellPadding="10">
-        <thead>
-          <tr>
-            <th>التصنيف</th>
-            <th>اسم الخدمة</th>
-            <th>السعر</th>
-            <th>الحالة</th>
-            <th>الإجراءات</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {services.length > 0 ? (
-            services.map((service) => (
-              <tr key={service.id}>
-                <td>{service.category}</td>
-                <td>{service.service_name}</td>
-                <td>{service.price} جنيه</td>
-                <td>
-                  {service.active ? "نشطة" : "متوقفة"}
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    onClick={() => startEditing(service)}
-                  >
-                    تعديل
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => toggleService(service)}
-                    style={{ margin: "5px", padding: "8px" }}
-                  >
-                    {service.active ? "إيقاف" : "تفعيل"}
-                  </button>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="5">لا توجد خدمات مسجلة</td>
-            </tr>
+          {editingId && (
+            <button type="button" onClick={resetForm} style={{ padding: 12 }}>
+              إلغاء التعديل
+            </button>
           )}
-        </tbody>
-      </table>
-    </main>
-  );
-}
+        </form>
+
+        {message && <p>{message}</p>}
+
+        <hr />
+
+        <h2>قائمة الخدمات</h2>
+
+        {loading ? (
+          <p>جاري تحميل الخدمات...</p>
+        ) : services.length === 0 ? (
+          <p>لا توجد خدمات مسجلة حتى الآن</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table width="100%" cellPadding="10" border="1">
+              <thead>
+                <tr>
+                  <th>الخدمة</th>
+                  <th>القسم</th>
+                  <th>السعر</th>
+                  <th>الحالة</th>
+                  <th>الإجراءات</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {services.map((service) => (
+                  <tr key={service.id}>
+                    <td>{service.service_name}</td>
+                    <td>{service.category}</td>
+                    <td>{service.price} جنيه</td>
+                    <td>{service.active ? "مفعلة" : "متوقفة"}</td>
+                    <td>
+                      <button type="button" onClick={() => editService(service)}>
+                        تعديل
+                      </button>
+                      {" "}
+                      <button type="button" onClick={() => toggleService(service)}>
+                        {service.active ? "إيقاف" : "تفعيل"}
+                      </button>{" "}
+<button
+  type="button"
+  onClick={() => deleteService(service)}
+  style={{ color: "red" }}
+>
+  حذف
+</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </main>
+    );
+  }
