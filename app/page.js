@@ -50,18 +50,21 @@ function Dashboard() {
         bookingsResult,
         servicesResult,
         expensesResult,
+        bookingServicesResult,
       ] = await Promise.all([
         supabase.from("customers").select("*"),
         supabase.from("bookings").select("*"),
         supabase.from("services").select("*"),
         supabase.from("expenses").select("*"),
+        supabase.from("booking_services").select("*"),
       ]);
 
       const error =
         customersResult.error ||
         bookingsResult.error ||
         servicesResult.error ||
-        expensesResult.error;
+        expensesResult.error ||
+        bookingServicesResult.error;
 
       if (error) throw error;
 
@@ -69,6 +72,7 @@ function Dashboard() {
       const bookings = bookingsResult.data || [];
       const services = servicesResult.data || [];
       const expenses = expensesResult.data || [];
+      const bookingServices = bookingServicesResult.data || [];
 
       const todayBookings = bookings.filter(
         (booking) => booking.booking_date === today
@@ -76,13 +80,33 @@ function Dashboard() {
 
       const todayExpenses = expenses
         .filter((expense) => expense.expense_date === today)
-        .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+        .reduce(
+          (sum, expense) => sum + Number(expense.amount || 0),
+          0
+        );
 
       const todayRevenue = todayBookings
         .filter((booking) => booking.status === "completed")
         .reduce((sum, booking) => {
+          const savedServices = bookingServices.filter(
+            (item) =>
+              String(item.booking_id) === String(booking.id)
+          );
+
+          if (savedServices.length > 0) {
+            return (
+              sum +
+              savedServices.reduce(
+                (total, item) =>
+                  total + Number(item.price || 0),
+                0
+              )
+            );
+          }
+
           const service = services.find(
-            (item) => String(item.id) === String(booking.service_id)
+            (item) =>
+              String(item.id) === String(booking.service_id)
           );
 
           return sum + Number(service?.price || 0);
@@ -105,24 +129,58 @@ function Dashboard() {
         .slice(0, 5)
         .map((booking) => {
           const customer = customers.find(
-            (item) => String(item.id) === String(booking.customer_id)
+            (item) =>
+              String(item.id) === String(booking.customer_id)
           );
 
-          const service = services.find(
-            (item) => String(item.id) === String(booking.service_id)
+          const savedServices = bookingServices.filter(
+            (item) =>
+              String(item.booking_id) === String(booking.id)
           );
+
+          let serviceNames = [];
+          let bookingTotal = 0;
+
+          if (savedServices.length > 0) {
+            savedServices.forEach((item) => {
+              const service = services.find(
+                (s) => String(s.id) === String(item.service_id)
+              );
+
+              serviceNames.push(
+                service?.service_name ||
+                  `خدمة رقم ${item.service_id}`
+              );
+
+              bookingTotal += Number(item.price || 0);
+            });
+          } else {
+            const service = services.find(
+              (item) =>
+                String(item.id) === String(booking.service_id)
+            );
+
+            serviceNames.push(
+              service?.service_name || "غير معروف"
+            );
+
+            bookingTotal = Number(service?.price || 0);
+          }
 
           return {
             ...booking,
             customerName: customer?.full_name || "غير معروف",
-            serviceName: service?.service_name || "غير معروف",
+            serviceName: serviceNames.join("، "),
+            bookingTotal,
           };
         });
 
       setRecentBookings(latest);
     } catch (error) {
       console.error("Dashboard Error:", error);
-      setErrorMessage("تعذر تحميل بيانات لوحة التحكم: " + error.message);
+      setErrorMessage(
+        "تعذر تحميل بيانات لوحة التحكم: " + error.message
+      );
     } finally {
       setLoading(false);
     }
@@ -199,10 +257,26 @@ function Dashboard() {
   ];
 
   const statusInfo = {
-    pending: { label: "جديد", color: "#9a6a19", background: "#fff4d9" },
-    confirmed: { label: "مؤكد", color: "#326c9b", background: "#e8f4ff" },
-    completed: { label: "مكتمل", color: "#397451", background: "#e8f7ed" },
-    cancelled: { label: "ملغي", color: "#ad3545", background: "#ffebee" },
+    pending: {
+      label: "جديد",
+      color: "#9a6a19",
+      background: "#fff4d9",
+    },
+    confirmed: {
+      label: "مؤكد",
+      color: "#326c9b",
+      background: "#e8f4ff",
+    },
+    completed: {
+      label: "مكتمل",
+      color: "#397451",
+      background: "#e8f7ed",
+    },
+    cancelled: {
+      label: "ملغي",
+      color: "#ad3545",
+      background: "#ffebee",
+    },
   };
 
   const sectionStyle = {
@@ -263,7 +337,7 @@ function Dashboard() {
             letterSpacing: "2px",
           }}
         >
-        MALAK BEAUTY SALON — نظام إدارة الصالون
+          MALAK BEAUTY SALON — نظام إدارة الصالون
         </div>
 
         <h1 style={{ fontSize: "32px", margin: "12px 0" }}>
@@ -364,7 +438,8 @@ function Dashboard() {
           <section
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(195px, 1fr))",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(195px, 1fr))",
               gap: "16px",
               marginBottom: "28px",
             }}
@@ -391,7 +466,9 @@ function Dashboard() {
                   <span style={{ color: "#806b77", fontSize: "14px" }}>
                     {card.title}
                   </span>
-                  <span style={{ fontSize: "24px" }}>{card.icon}</span>
+                  <span style={{ fontSize: "24px" }}>
+                    {card.icon}
+                  </span>
                 </div>
 
                 <h2
@@ -408,7 +485,9 @@ function Dashboard() {
             ))}
           </section>
 
-          <section style={{ ...sectionStyle, marginBottom: "28px" }}>
+          <section
+            style={{ ...sectionStyle, marginBottom: "28px" }}
+          >
             <div
               style={{
                 display: "flex",
@@ -451,27 +530,32 @@ function Dashboard() {
                   className="dashboard-table"
                   style={{
                     width: "100%",
-                    minWidth: "600px",
+                    minWidth: "750px",
                     borderCollapse: "collapse",
                     textAlign: "right",
                   }}
                 >
                   <thead style={{ background: "#f8e8ef" }}>
                     <tr>
-                      {["العميلة", "الخدمة", "التاريخ", "الوقت", "الحالة"].map(
-                        (heading) => (
-                          <th
-                            key={heading}
-                            style={{
-                              padding: "14px 12px",
-                              color: "#81264f",
-                              fontSize: "14px",
-                            }}
-                          >
-                            {heading}
-                          </th>
-                        )
-                      )}
+                      {[
+                        "العميلة",
+                        "الخدمات",
+                        "الإجمالي",
+                        "التاريخ",
+                        "الوقت",
+                        "الحالة",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          style={{
+                            padding: "14px 12px",
+                            color: "#81264f",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {heading}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
 
@@ -486,19 +570,62 @@ function Dashboard() {
 
                       return (
                         <tr key={booking.id}>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             {booking.customerName}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                              minWidth: "180px",
+                              lineHeight: "1.8",
+                            }}
+                          >
                             {booking.serviceName}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                              fontWeight: "bold",
+                              color: "#397451",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {money(booking.bookingTotal)}
+                          </td>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             {booking.booking_date}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             {booking.booking_time || "-"}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             <span
                               style={{
                                 background: status.background,
@@ -529,7 +656,8 @@ function Dashboard() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(190px, 1fr))",
                 gap: "15px",
               }}
             >
@@ -602,4 +730,3 @@ export default function Home() {
     </AuthGuard>
   );
 }
-
