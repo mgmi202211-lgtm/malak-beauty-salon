@@ -27,13 +27,13 @@ function Dashboard() {
   const money = (value) =>
     Number(value || 0).toLocaleString("ar-EG", {
       maximumFractionDigits: 2,
-    }) + " Ø¬Ù†ÙŠÙ‡";
+    }) + " جنيه";
 
   async function handleLogout() {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
-      alert("ØªØ¹Ø°Ø± ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬: " + error.message);
+      alert("تعذر تسجيل الخروج: " + error.message);
       return;
     }
 
@@ -114,15 +114,15 @@ function Dashboard() {
 
           return {
             ...booking,
-            customerName: customer?.full_name || "ØºÙŠØ± Ù…Ø¹Ø±ÙˆÙ",
-            serviceName: service?.service_name || "ØºÙŠØ± Ù…Ø¹Ø±ÙˆÙ",
+            customerName: customer?.full_name || "غير معروف",
+            serviceName: service?.service_name || "غير معروف",
           };
         });
 
       setRecentBookings(latest);
     } catch (error) {
       console.error("Dashboard Error:", error);
-      setErrorMessage("ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø¨ÙŠØ§Ù†Ø§Øª Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…: " + error.message);
+      setErrorMessage("تعذر تحميل بيانات لوحة التحكم: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -134,75 +134,75 @@ function Dashboard() {
 
   const cards = [
     {
-      title: "Ø¹Ø¯Ø¯ Ø§Ù„Ø¹Ù…ÙŠÙ„Ø§Øª",
+      title: "عدد العميلات",
       value: stats.customers,
       color: "#9b4770",
-      icon: "ðŸ‘©",
+      icon: "👩",
     },
     {
-      title: "Ø¥Ø¬Ù…Ø§Ù„ÙŠ Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª",
+      title: "إجمالي الحجوزات",
       value: stats.bookings,
       color: "#8b65a1",
-      icon: "ðŸ“…",
+      icon: "📅",
     },
     {
-      title: "Ø¥ÙŠØ±Ø§Ø¯Ø§Øª Ø§Ù„ÙŠÙˆÙ…",
+      title: "إيرادات اليوم",
       value: money(stats.revenue),
       color: "#397451",
-      icon: "ðŸ’°",
+      icon: "💰",
     },
     {
-      title: "Ù…ØµØ±ÙˆÙØ§Øª Ø§Ù„ÙŠÙˆÙ…",
+      title: "مصروفات اليوم",
       value: money(stats.expenses),
       color: "#b64c62",
-      icon: "ðŸ§¾",
+      icon: "🧾",
     },
     {
-      title: "ØµØ§ÙÙŠ Ø±Ø¨Ø­ Ø§Ù„ÙŠÙˆÙ…",
+      title: "صافي ربح اليوم",
       value: money(stats.profit),
       color: "#a77b2f",
-      icon: "âœ¨",
+      icon: "✨",
     },
   ];
 
   const links = [
     {
-      title: "Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ø¹Ù…ÙŠÙ„Ø§Øª",
-      description: "Ø¥Ø¶Ø§ÙØ© ÙˆØªØ¹Ø¯ÙŠÙ„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ø¹Ù…ÙŠÙ„Ø§Øª",
+      title: "إدارة العميلات",
+      description: "إضافة وتعديل بيانات العميلات",
       href: "/customers",
-      icon: "ðŸ‘©â€ðŸ’¼",
+      icon: "👩‍💼",
     },
     {
-      title: "Ø§Ù„Ø®Ø¯Ù…Ø§Øª ÙˆØ§Ù„Ø£Ø³Ø¹Ø§Ø±",
-      description: "Ø¥Ø¯Ø§Ø±Ø© Ø®Ø¯Ù…Ø§Øª Ø§Ù„ØµØ§Ù„ÙˆÙ† ÙˆØ£Ø³Ø¹Ø§Ø±Ù‡Ø§",
+      title: "الخدمات والأسعار",
+      description: "إدارة خدمات الصالون وأسعارها",
       href: "/services",
-      icon: "ðŸ’‡â€â™€ï¸",
+      icon: "💇‍♀️",
     },
     {
-      title: "Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª",
-      description: "Ù…ØªØ§Ø¨Ø¹Ø© Ø§Ù„Ù…ÙˆØ§Ø¹ÙŠØ¯ ÙˆØ­Ø§Ù„Ø§Øª Ø§Ù„Ø­Ø¬Ø²",
+      title: "إدارة الحجوزات",
+      description: "متابعة المواعيد وحالات الحجز",
       href: "/bookings",
-      icon: "ðŸ“…",
+      icon: "📅",
     },
     {
-      title: "Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª ÙˆØ§Ù„ØªÙ‚Ø§Ø±ÙŠØ±",
-      description: "Ø§Ù„Ø¥ÙŠØ±Ø§Ø¯Ø§Øª ÙˆØ§Ù„Ù…ØµØ±ÙˆÙØ§Øª ÙˆØ§Ù„Ø£Ø±Ø¨Ø§Ø­",
+      title: "الحسابات والتقارير",
+      description: "الإيرادات والمصروفات والأرباح",
       href: "/accounting",
-      icon: "ðŸ“Š",
+      icon: "📊",
     },
     {
-      title: "Ø¥Ø¶Ø§ÙØ© Ù…ØµØ±ÙˆÙ",
-      description: "ØªØ³Ø¬ÙŠÙ„ Ù…ØµØ±ÙˆÙ Ø¬Ø¯ÙŠØ¯",
+      title: "إضافة مصروف",
+      description: "تسجيل مصروف جديد",
       href: "/expenses",
-      icon: "âž•",
+      icon: "➕",
     },
   ];
 
   const statusInfo = {
-    pending: { label: "Ø¬Ø¯ÙŠØ¯", color: "#9a6a19", background: "#fff4d9" },
-    confirmed: { label: "Ù…Ø¤ÙƒØ¯", color: "#326c9b", background: "#e8f4ff" },
-    completed: { label: "Ù…ÙƒØªÙ…Ù„", color: "#397451", background: "#e8f7ed" },
-    cancelled: { label: "Ù…Ù„ØºÙŠ", color: "#ad3545", background: "#ffebee" },
+    pending: { label: "جديد", color: "#9a6a19", background: "#fff4d9" },
+    confirmed: { label: "مؤكد", color: "#326c9b", background: "#e8f4ff" },
+    completed: { label: "مكتمل", color: "#397451", background: "#e8f7ed" },
+    cancelled: { label: "ملغي", color: "#ad3545", background: "#ffebee" },
   };
 
   const sectionStyle = {
@@ -263,15 +263,15 @@ function Dashboard() {
             letterSpacing: "2px",
           }}
         >
-          MALAK BEAUTY SALON
+        MALAK BEAUTY SALON — نظام إدارة الصالون
         </div>
 
         <h1 style={{ fontSize: "32px", margin: "12px 0" }}>
-          ØµØ§Ù„ÙˆÙ† Ù…Ù„Ùƒ Ù„Ù„ØªØ¬Ù…ÙŠÙ„
+          صالون ملك للتجميل
         </h1>
 
         <p style={{ color: "#fff0f5", margin: 0 }}>
-          Ø£Ù‡Ù„Ø§Ù‹ Ø¨Ùƒ ÙÙŠ Ù„ÙˆØ­Ø© Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµØ§Ù„ÙˆÙ†
+          أهلاً بك في لوحة إدارة الصالون
         </p>
 
         <div
@@ -293,7 +293,7 @@ function Dashboard() {
               fontSize: "13px",
             }}
           >
-            ðŸ“… {today}
+            📅 {today}
           </span>
 
           <button
@@ -310,7 +310,7 @@ function Dashboard() {
               fontWeight: "bold",
             }}
           >
-            {loading ? "Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ø¯ÙŠØ«..." : "â†» ØªØ­Ø¯ÙŠØ« Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª"}
+            {loading ? "جاري التحديث..." : "↻ تحديث البيانات"}
           </button>
 
           <button
@@ -326,7 +326,7 @@ function Dashboard() {
               fontWeight: "bold",
             }}
           >
-            ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø®Ø±ÙˆØ¬
+            تسجيل الخروج
           </button>
         </div>
       </header>
@@ -348,16 +348,16 @@ function Dashboard() {
 
       <div style={{ marginBottom: "15px" }}>
         <h2 style={{ color: "#922c5c", fontSize: "21px" }}>
-          Ù…Ù„Ø®Øµ Ø§Ù„ØµØ§Ù„ÙˆÙ†
+          ملخص الصالون
         </h2>
         <p style={{ color: "#927d89", fontSize: "14px" }}>
-          Ù†Ø¸Ø±Ø© Ø³Ø±ÙŠØ¹Ø© Ø¹Ù„Ù‰ Ø£Ø¯Ø§Ø¡ Ø§Ù„ØµØ§Ù„ÙˆÙ† Ø§Ù„ÙŠÙˆÙ…
+          نظرة سريعة على أداء الصالون اليوم
         </p>
       </div>
 
       {loading ? (
         <div style={sectionStyle}>
-          Ø¬Ø§Ø±ÙŠ ØªØ­Ù…ÙŠÙ„ Ø¨ÙŠØ§Ù†Ø§Øª Ù„ÙˆØ­Ø© Ø§Ù„ØªØ­ÙƒÙ…...
+          جاري تحميل بيانات لوحة التحكم...
         </div>
       ) : (
         <>
@@ -421,10 +421,10 @@ function Dashboard() {
             >
               <div>
                 <h2 style={{ color: "#922c5c", margin: "0 0 7px" }}>
-                  Ø£Ø­Ø¯Ø« Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª
+                  أحدث الحجوزات
                 </h2>
                 <span style={{ color: "#927d89", fontSize: "13px" }}>
-                  Ø¢Ø®Ø± Ø®Ù…Ø³Ø© Ø­Ø¬ÙˆØ²Ø§Øª Ù…Ø³Ø¬Ù„Ø©
+                  آخر خمسة حجوزات مسجلة
                 </span>
               </div>
 
@@ -437,13 +437,13 @@ function Dashboard() {
                   fontSize: "14px",
                 }}
               >
-                Ø¹Ø±Ø¶ ÙƒÙ„ Ø§Ù„Ø­Ø¬ÙˆØ²Ø§Øª â†
+                عرض كل الحجوزات ←
               </Link>
             </div>
 
             {recentBookings.length === 0 ? (
               <p style={{ color: "#927d89" }}>
-                Ù„Ø§ ØªÙˆØ¬Ø¯ Ø­Ø¬ÙˆØ²Ø§Øª Ø­ØªÙ‰ Ø§Ù„Ø¢Ù†
+                لا توجد حجوزات حتى الآن
               </p>
             ) : (
               <div style={{ overflowX: "auto" }}>
@@ -458,7 +458,7 @@ function Dashboard() {
                 >
                   <thead style={{ background: "#f8e8ef" }}>
                     <tr>
-                      {["Ø§Ù„Ø¹Ù…ÙŠÙ„Ø©", "Ø§Ù„Ø®Ø¯Ù…Ø©", "Ø§Ù„ØªØ§Ø±ÙŠØ®", "Ø§Ù„ÙˆÙ‚Øª", "Ø§Ù„Ø­Ø§Ù„Ø©"].map(
+                      {["العميلة", "الخدمة", "التاريخ", "الوقت", "الحالة"].map(
                         (heading) => (
                           <th
                             key={heading}
@@ -523,7 +523,7 @@ function Dashboard() {
 
           <section>
             <h2 style={{ color: "#922c5c", marginBottom: "18px" }}>
-              Ø£Ù‚Ø³Ø§Ù… Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„ØµØ§Ù„ÙˆÙ†
+              أقسام إدارة الصالون
             </h2>
 
             <div
