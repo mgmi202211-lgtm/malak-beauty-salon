@@ -234,13 +234,20 @@ function Dashboard() {
   }, []);
 
   // البحث عن العميلة برقم الهاتف
-  async function findCustomer() {
+  async function findCustomer(phoneValue = customerPhone) {
     setFormError("");
     setFormMessage("");
     setCustomerFound(null);
     setCustomerMessage("");
 
-    const phone = customerPhone.trim();
+    const phone = String(phoneValue || "").trim();
+
+if (!/^\d{11}$/.test(phone)) {
+  setCustomerName("");
+  setCustomerFound(null);
+  setCustomerMessage("");
+  return;
+}
 
     if (!phone) {
       setFormError("اكتبي رقم هاتف العميلة أولاً");
@@ -272,7 +279,17 @@ function Dashboard() {
       setCustomerMessage("رقم جديد — سيتم تسجيل العميلة عند حفظ الفاتورة.");
     }
   }
+useEffect(() => {
+  const phone = customerPhone.trim();
 
+  if (!/^\d{11}$/.test(phone)) return;
+
+  const timer = setTimeout(() => {
+    findCustomer(phone);
+  }, 400);
+
+  return () => clearTimeout(timer);
+}, [customerPhone]);
   function addService() {
     setFormError("");
     setFormMessage("");
@@ -324,7 +341,7 @@ function Dashboard() {
   );
 
   // حفظ العميلة والحجز والخدمات
-  async function saveInvoice(event) {
+  async function ذ(event) {
     event.preventDefault();
 
     setFormError("");
