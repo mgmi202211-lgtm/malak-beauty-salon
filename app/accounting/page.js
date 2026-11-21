@@ -21,6 +21,7 @@ export default function AccountingPage() {
   const [expenses, setExpenses] = useState([]);
   const [completedBookings, setCompletedBookings] = useState([]);
   const [services, setServices] = useState([]);
+  const [bookingServices, setBookingServices] = useState([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -29,35 +30,54 @@ export default function AccountingPage() {
 
   async function loadExpenses() {
     setLoading(true);
+    setMessage("");
 
-    const [expenseResult, bookingResult, serviceResult] =
-      await Promise.all([
-        supabase
-          .from("expenses")
-          .select("*")
-          .order("expense_date", { ascending: false }),
+    const [
+      expenseResult,
+      bookingResult,
+      serviceResult,
+      bookingServicesResult,
+    ] = await Promise.all([
+      supabase
+        .from("expenses")
+        .select("*")
+        .order("expense_date", { ascending: false }),
 
-        supabase
-          .from("bookings")
-          .select("id, service_id, booking_date, booking_time, status")
-          .eq("status", "completed"),
+      supabase
+        .from("bookings")
+        .select("id, service_id, booking_date, booking_time, status")
+        .eq("status", "completed"),
 
-        supabase
-          .from("services")
-          .select("id, service_name, price"),
-      ]);
+      supabase
+        .from("services")
+        .select("id, service_name, price"),
+
+      supabase
+        .from("booking_services")
+        .select("booking_id, service_id, price"),
+    ]);
 
     setLoading(false);
 
     if (expenseResult.error) {
-      setMessage("خطأ في تحميل المصروفات: " + expenseResult.error.message);
+      setMessage(
+        "خطأ في تحميل المصروفات: " + expenseResult.error.message
+      );
       return;
     }
 
-    if (bookingResult.error || serviceResult.error) {
+    if (
+      bookingResult.error ||
+      serviceResult.error ||
+      bookingServicesResult.error
+    ) {
       setMessage(
         "خطأ في تحميل الإيرادات: " +
-          (bookingResult.error?.message || serviceResult.error?.message)
+          (
+            bookingResult.error?.message ||
+            serviceResult.error?.message ||
+            bookingServicesResult.error?.message
+          )
       );
       return;
     }
@@ -65,6 +85,7 @@ export default function AccountingPage() {
     setExpenses(expenseResult.data || []);
     setCompletedBookings(bookingResult.data || []);
     setServices(serviceResult.data || []);
+    setBookingServices(bookingServicesResult.data || []);
   }
 
   useEffect(() => {
@@ -93,14 +114,54 @@ export default function AccountingPage() {
       (item) => String(item.id) === String(serviceId)
     );
 
+  // جلب جميع خدمات الحجز وأسعارها المحفوظة وقت الفاتورة
+  const getBookingServiceItems = (booking) => {
+    const items = bookingServices.filter(
+      (item) => String(item.booking_id) === String(booking.id)
+    );
+
+    // للحجوزات القديمة التي لا تحتوي على تفاصيل خدمات
+    if (items.length === 0) {
+      const service = getService(booking.service_id);
+
+      if (!service) return [];
+
+      return [
+        {
+          service_id: booking.service_id,
+          price: service.price,
+          service_name: service.service_name,
+          fallback: true,
+        },
+      ];
+    }
+
+    return items.map((item) => {
+      const service = getService(item.service_id);
+
+      return {
+        ...item,
+        service_name:
+          service?.service_name || `خدمة رقم ${item.service_id}`,
+        fallback: false,
+      };
+    });
+  };
+
+  // إجمالي إيراد الحجز من جميع خدماته
+  const getBookingTotal = (booking) =>
+    getBookingServiceItems(booking).reduce(
+      (sum, item) => sum + Number(item.price || 0),
+      0
+    );
+
   const totalExpenses = expenses.reduce(
     (sum, item) => sum + Number(item.amount || 0),
     0
   );
 
   const totalRevenue = completedBookings.reduce(
-    (sum, booking) =>
-      sum + Number(getService(booking.service_id)?.price || 0),
+    (sum, booking) => sum + getBookingTotal(booking),
     0
   );
 
@@ -139,8 +200,7 @@ export default function AccountingPage() {
   );
 
   const reportTotalRevenue = reportBookings.reduce(
-    (sum, booking) =>
-      sum + Number(getService(booking.service_id)?.price || 0),
+    (sum, booking) => sum + getBookingTotal(booking),
     0
   );
 
@@ -268,7 +328,7 @@ export default function AccountingPage() {
         </div>
       </section>
 
-      {/* إضافة مصروف */}
+      {/* إدارة المصروفات */}
       <section
         className="no-print"
         style={{
@@ -474,7 +534,13 @@ export default function AccountingPage() {
                 {expenses.map((item) => (
                   <tr key={item.id}>
                     <td style={cellStyle}>{item.expense_name}</td>
-                    <td style={{ ...cellStyle, color: "#a34770", fontWeight: "bold" }}>
+                    <td
+                      style={{
+                        ...cellStyle,
+                        color: "#a34770",
+                        fontWeight: "bold",
+                      }}
+                    >
                       {formatMoney(item.amount)}
                     </td>
                     <td style={cellStyle}>{item.expense_date}</td>
@@ -516,51 +582,105 @@ export default function AccountingPage() {
           سجل الحجوزات المكتملة والإيرادات
         </h2>
 
-        <div style={{ overflowX: "auto" }}>
-          <table className="accounting-table" style={tableStyle}>
-            <thead style={{ background: "#f8e8ef" }}>
-              <tr>
-                <th style={cellStyle}>رقم الحجز</th>
-                <th style={cellStyle}>الخدمة</th>
-                <th style={cellStyle}>التاريخ</th>
-                <th style={cellStyle}>الوقت</th>
-                <th style={cellStyle}>الإيراد</th>
-              </tr>
-            </thead>
+        {loading ? (
+          <p>جاري تحميل الحجوزات...</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="accounting-table" style={tableStyle}>
+              <thead style={{ background: "#f8e8ef" }}>
+                <tr>
+                  <th style={cellStyle}>رقم الحجز</th>
+                  <th style={cellStyle}>الخدمات وأسعارها</th>
+                  <th style={cellStyle}>التاريخ</th>
+                  <th style={cellStyle}>الوقت</th>
+                  <th style={cellStyle}>إجمالي الإيراد</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              {completedBookings.map((booking) => {
-                const service = getService(booking.service_id);
+              <tbody>
+                {completedBookings.map((booking) => {
+                  const items = getBookingServiceItems(booking);
+                  const bookingTotal = getBookingTotal(booking);
 
-                return (
-                  <tr key={booking.id}>
-                    <td style={cellStyle}>{booking.id}</td>
-                    <td style={cellStyle}>
-                      {service?.service_name || "خدمة غير موجودة"}
-                    </td>
-                    <td style={cellStyle}>{booking.booking_date}</td>
-                    <td style={cellStyle}>{booking.booking_time || "-"}</td>
-                    <td style={{ ...cellStyle, color: "#397451", fontWeight: "bold" }}>
-                      {formatMoney(service?.price || 0)}
+                  return (
+                    <tr key={booking.id}>
+                      <td style={cellStyle}>{booking.id}</td>
+
+                      <td style={cellStyle}>
+                        {items.length > 0 ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "7px",
+                              alignItems: "center",
+                            }}
+                          >
+                            {items.map((item, index) => (
+                              <div
+                                key={`${item.service_id}-${index}`}
+                                style={{
+                                  borderBottom:
+                                    index < items.length - 1
+                                      ? "1px solid #f3e5eb"
+                                      : "none",
+                                  paddingBottom: "5px",
+                                }}
+                              >
+                                <div>{item.service_name}</div>
+                                <small style={{ color: "#88727e" }}>
+                                  {formatMoney(item.price)}
+                                </small>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          "لا توجد تفاصيل خدمات"
+                        )}
+                      </td>
+
+                      <td style={cellStyle}>{booking.booking_date}</td>
+
+                      <td style={cellStyle}>
+                        {booking.booking_time || "-"}
+                      </td>
+
+                      <td
+                        style={{
+                          ...cellStyle,
+                          color: "#397451",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {formatMoney(bookingTotal)}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {completedBookings.length === 0 && (
+                  <tr>
+                    <td colSpan="5" style={cellStyle}>
+                      لا توجد حجوزات مكتملة حتى الآن
                     </td>
                   </tr>
-                );
-              })}
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-              {completedBookings.length === 0 && (
-                <tr>
-                  <td colSpan="5" style={cellStyle}>
-                    لا توجد حجوزات مكتملة حتى الآن
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <p style={{ color: "#88727e", marginTop: "20px", fontSize: "13px" }}>
-          ملاحظة: الإيرادات محسوبة من سعر الخدمة الحالي لكل حجز مكتمل،
-          بافتراض أن الخدمة تم دفع ثمنها.
+        <p
+          style={{
+            color: "#88727e",
+            marginTop: "20px",
+            fontSize: "13px",
+          }}
+        >
+          ملاحظة: يتم احتساب إيرادات كل حجز من أسعار الخدمات المحفوظة
+          وقت إنشاء الفاتورة. وفي حالة الحجوزات القديمة التي لا تحتوي
+          على تفاصيل خدمات محفوظة، يتم استخدام سعر الخدمة الأساسية
+          الحالي كحل احتياطي. يتم احتساب الحجوزات المكتملة فقط.
         </p>
       </section>
 
