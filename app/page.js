@@ -341,7 +341,7 @@ useEffect(() => {
   );
 
   // حفظ العميلة والحجز والخدمات
-  async function ذ(event) {
+  async function saveInvoice(event) {
     event.preventDefault();
 
     setFormError("");
@@ -350,10 +350,10 @@ useEffect(() => {
     const name = customerName.trim();
     const phone = customerPhone.trim();
 
-    if (!name) {
-      setFormError("اكتبي اسم العميلة");
-      return;
-    }
+   if (!/^\d{11}$/.test(phone)) {
+  setFormError("رقم الهاتف يجب أن يتكون من 11 رقمًا");
+  return;
+}
 
     if (!phone) {
       setFormError("اكتبي رقم هاتف العميلة");
