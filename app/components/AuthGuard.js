@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,35 +13,48 @@ export default function AuthGuard({ children }) {
   useEffect(() => {
     let mounted = true;
 
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    function handleSession(session) {
       if (!mounted) return;
 
       if (session) {
         setAuthorized(true);
         setChecking(false);
-      }
-
-      if (event === "SIGNED_OUT") {
+      } else {
         setAuthorized(false);
         setChecking(false);
         router.replace("/login");
+      }
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return;
+
+      if (session) {
+        handleSession(session);
+      } else if (
+        event === "INITIAL_SESSION" ||
+        event === "SIGNED_OUT"
+      ) {
+        handleSession(null);
       }
     });
 
     async function checkSession() {
-      const { data, error } = await supabase.auth.getSession();
+      try {
+        const { data, error } = await supabase.auth.getSession();
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (error || !data.session) {
-        setAuthorized(false);
-        setChecking(false);
-        router.replace("/login");
-      } else {
-        setAuthorized(true);
-        setChecking(false);
+        if (error) {
+          handleSession(null);
+          return;
+        }
+
+        handleSession(data.session);
+      } catch (error) {
+        handleSession(null);
       }
     }
 
@@ -54,12 +68,15 @@ export default function AuthGuard({ children }) {
 
   if (checking) {
     return (
-      <div dir="rtl" style={{
-        textAlign: "center",
-        padding: "50px",
-        fontFamily: "Arial"
-      }}>
-        Ø¬Ø§Ø±ÙŠ Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù† ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„...
+      <div
+        dir="rtl"
+        style={{
+          textAlign: "center",
+          padding: "50px",
+          fontFamily: "Arial",
+        }}
+      >
+        جاري التحقق من تسجيل الدخول...
       </div>
     );
   }
