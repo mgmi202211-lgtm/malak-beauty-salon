@@ -389,7 +389,7 @@ function Dashboard() {
           customer_id: customer.id,
           service_id: selectedServices[0].id,
           booking_date: bookingDate || todayDate(),
-          booking_time: bookingTime || null,
+          booking_time: bookingTime || new Date().toTimeString().slice(0, 8),
           status: "pending",
           notes: notes.trim(),
         })
