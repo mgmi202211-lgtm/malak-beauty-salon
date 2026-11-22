@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 
 export default function CustomersPage() {
@@ -346,30 +345,6 @@ export default function CustomersPage() {
         minHeight: "100vh",
       }}
     >
-      <Link
-        href="/"
-        style={{
-          display: "inline-block",
-          padding: "12px 20px",
-          background: colors.primary,
-          color: colors.white,
-          textDecoration: "none",
-          borderRadius: 10,
-          marginBottom: 20,
-          fontWeight: "bold",
-        }}
-      >
-        ← العودة إلى الصفحة الرئيسية
-      </Link>
-
-      <h1 style={{ color: colors.primary }}>
-        إدارة العميلات - صالون ملك
-      </h1>
-
-      <p style={{ color: colors.muted }}>
-        عرض بيانات العميلات وإدارة بياناتهن وسجل الزيارات
-      </p>
-
       {message && (
         <div
           style={{
@@ -705,4 +680,3 @@ export default function CustomersPage() {
     </main>
   );
 }
-```
