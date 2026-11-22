@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
 import AuthGuard from "./components/AuthGuard";
 
 const todayDate = () => {
+  const normalizePhone = (value) =>
+  String(value || "")
+    .replace(/[٠-٩]/g, (digit) =>
+      String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))
+    )
+    .replace(/[۰-۹]/g, (digit) =>
+      String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit))
+    )
+    .replace(/\D/g, "")
+    .slice(0, 11);
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -57,6 +67,7 @@ function Dashboard() {
   const [services, setServices] = useState([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const customerPhoneRef = useRef("");
   const [customerFound, setCustomerFound] = useState(null);
   const [customerMessage, setCustomerMessage] = useState("");
   const [selectedServices, setSelectedServices] = useState([]);
@@ -234,20 +245,71 @@ function Dashboard() {
   }, []);
 
   // البحث عن العميلة برقم الهاتف
-  async function findCustomer(phoneValue = customerPhone) {
-    setFormError("");
-    setFormMessage("");
-    setCustomerFound(null);
-    setCustomerMessage("");
+async function findCustomer(phoneValue = customerPhone) {
+  const phone = normalizePhone(phoneValue);
 
-    const phone = String(phoneValue || "").trim();
-
-if (!/^\d{11}$/.test(phone)) {
-  setCustomerName("");
+  setFormError("");
+  setFormMessage("");
   setCustomerFound(null);
+  setCustomerName("");
   setCustomerMessage("");
-  return;
+
+  if (phone.length !== 11) {
+    return;
+  }
+
+  setCustomerMessage("جاري البحث عن العميلة...");
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("phone", phone)
+    .limit(2);
+
+  // تجاهل نتيجة البحث لو الرقم اتغير أثناء البحث
+  if (customerPhoneRef.current !== phone) {
+    return;
+  }
+
+  if (error) {
+    setCustomerMessage("");
+    setFormError("تعذر البحث عن العميلة: " + error.message);
+    return;
+  }
+
+  if (data && data.length > 0) {
+    const customer = data[0];
+
+    setCustomerFound(customer);
+    setCustomerName(customer.full_name || "");
+
+    setCustomerMessage(
+      data.length > 1
+        ? "تم العثور على أكثر من سجل بنفس الرقم، سيتم استخدام أول سجل."
+        : "تم العثور على العميلة المسجلة."
+    );
+  } else {
+    setCustomerFound(null);
+    setCustomerName("");
+    setCustomerMessage(
+      "رقم جديد — اكتبي اسم العميلة وسيتم تسجيلها عند حفظ الفاتورة."
+    );
+  }
 }
+
+useEffect(() => {
+  const phone = normalizePhone(customerPhone);
+
+  if (phone.length !== 11) {
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    findCustomer(phone);
+  }, 400);
+
+  return () => clearTimeout(timer);
+}, [customerPhone]);
 
     if (!phone) {
       setFormError("اكتبي رقم هاتف العميلة أولاً");
@@ -347,14 +409,19 @@ useEffect(() => {
     setFormError("");
     setFormMessage("");
 
-    const name = customerName.trim();
-    const phone = customerPhone.trim();
+   const name = customerName.trim();
+const phone = normalizePhone(customerPhone);
 
-   if (!/^\d{11}$/.test(phone)) {
-  setFormError("رقم الهاتف يجب أن يتكون من 11 رقمًا");
+if (!phone) {
+  setFormError("اكتبي رقم هاتف العميلة");
   return;
 }
 
+if (phone.length !== 11) {
+  setFormError("رقم الهاتف يجب أن يتكون من 11 رقمًا");
+  return;
+}
+try
     if (!phone) {
       setFormError("اكتبي رقم هاتف العميلة");
       return;
@@ -382,22 +449,27 @@ useEffect(() => {
 
       if (searchError) throw searchError;
 
-      if (existingCustomers && existingCustomers.length > 0) {
-        customer = existingCustomers[0];
-      } else {
-        const { data: newCustomer, error: customerError } = await supabase
-          .from("customers")
-          .insert({
-            full_name: name,
-            phone: phone,
-          })
-          .select()
-          .single();
+     if (existingCustomers && existingCustomers.length > 0) {
+  customer = existingCustomers[0];
+} else {
+  if (!name) {
+    setFormError("اكتبي اسم العميلة الجديدة");
+    return;
+  }
 
-        if (customerError) throw customerError;
+  const { data: newCustomer, error: customerError } = await supabase
+    .from("customers")
+    .insert({
+      full_name: name,
+      phone: phone,
+    })
+    .select()
+    .single();
 
-        customer = newCustomer;
-      }
+  if (customerError) throw customerError;
+
+  customer = newCustomer;
+}
 
       // إنشاء الحجز
       const { data: newBooking, error: bookingError } = await supabase
@@ -756,35 +828,46 @@ useEffect(() => {
               gap: "18px",
             }}
           >
-            <div>
-              <label style={labelStyle}>رقم هاتف العميلة</label>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <input
-                  style={inputStyle}
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => {
-                    setCustomerPhone(e.target.value);
-                    setCustomerFound(null);
-                    setCustomerMessage("");
-                  }}
-                  placeholder="أدخلي رقم الهاتف"
-                  required
-                />
-                <button
-                  type="button"
-                  className="gold-button"
-                  onClick={findCustomer}
-                >
-                  بحث
-                </button>
-              </div>
-              {customerMessage && (
-                <p style={{ color: "#e6c58c", fontSize: "13px" }}>
-                  {customerMessage}
-                </p>
-              )}
-            </div>
+           <div>
+  <label style={labelStyle}>رقم هاتف العميلة</label>
+
+  <div style={{ display: "flex", gap: "8px" }}>
+    <input
+      style={inputStyle}
+      type="tel"
+      inputMode="numeric"
+      maxLength={11}
+      value={customerPhone}
+      onChange={(e) => {
+        const value = normalizePhone(e.target.value);
+
+        customerPhoneRef.current = value;
+        setCustomerPhone(value);
+        setCustomerName("");
+        setCustomerFound(null);
+        setCustomerMessage("");
+        setFormError("");
+        setFormMessage("");
+      }}
+      placeholder="أدخلي رقم الهاتف"
+      required
+    />
+
+    <button
+      type="button"
+      className="gold-button"
+      onClick={() => findCustomer(customerPhone)}
+    >
+      بحث
+    </button>
+  </div>
+
+  {customerMessage && (
+    <p style={{ color: "#e6c58c", fontSize: "13px" }}>
+      {customerMessage}
+    </p>
+  )}
+</div>
 
             <div>
               <label style={labelStyle}>اسم العميلة</label>
