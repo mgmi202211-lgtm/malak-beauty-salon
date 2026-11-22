@@ -91,11 +91,206 @@ export default function BookingsPage() {
     ];
   }
 
+  // تقسيم الحجوزات حسب الحالة
+  const bookingGroups = [
+    {
+      status: "pending",
+      title: "الحجوزات الجديدة",
+      color: "#d97706",
+      background: "#fff7ed",
+    },
+    {
+      status: "confirmed",
+      title: "الحجوزات المؤكدة",
+      color: "#2563eb",
+      background: "#eff6ff",
+    },
+    {
+      status: "completed",
+      title: "الحجوزات المكتملة",
+      color: "#15803d",
+      background: "#f0fdf4",
+    },
+    {
+      status: "cancelled",
+      title: "الحجوزات الملغاة",
+      color: "#b42336",
+      background: "#fef2f2",
+    },
+  ];
+
+  // توحيد عرض الحالة الفارغة باعتبارها حجزًا جديدًا
+  function getBookingStatus(booking) {
+    return booking.status || "pending";
+  }
+
+  function renderBookingTable(group) {
+    const groupBookings = bookings.filter(
+      (booking) => getBookingStatus(booking) === group.status
+    );
+
+    return (
+      <section
+        key={group.status}
+        style={{
+          marginTop: 30,
+          padding: 20,
+          border: `1px solid ${group.color}33`,
+          borderRadius: 14,
+          background: "white",
+          boxShadow: "0 3px 12px rgba(0,0,0,0.04)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 10,
+            marginBottom: 18,
+            padding: 12,
+            borderRadius: 10,
+            background: group.background,
+          }}
+        >
+          <h2
+            style={{
+              color: group.color,
+              margin: 0,
+              fontSize: 21,
+            }}
+          >
+            {group.title}
+          </h2>
+
+          <span
+            style={{
+              padding: "7px 15px",
+              background: group.color,
+              color: "white",
+              borderRadius: 20,
+              fontWeight: "bold",
+            }}
+          >
+            {groupBookings.length} حجز
+          </span>
+        </div>
+
+        {groupBookings.length === 0 ? (
+          <p
+            style={{
+              textAlign: "center",
+              color: "#777",
+              padding: 20,
+            }}
+          >
+            لا توجد حجوزات في هذا القسم
+          </p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table
+              width="100%"
+              cellPadding="10"
+              style={{
+                borderCollapse: "collapse",
+                textAlign: "center",
+                background: "white",
+                minWidth: 850,
+              }}
+            >
+              <thead style={{ background: group.background }}>
+                <tr>
+                  <th>رقم الحجز</th>
+                  <th>كود العميلة</th>
+                  <th>الخدمات</th>
+                  <th>الإجمالي</th>
+                  <th>التاريخ</th>
+                  <th>الوقت</th>
+                  <th>الحالة</th>
+                  <th>الملاحظات</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {groupBookings.map((booking) => {
+                  const customer = customers.find(
+                    (item) =>
+                      String(item.id) === String(booking.customer_id)
+                  );
+
+                  const items = getBookingServices(booking);
+
+                  const total = items.reduce(
+                    (sum, item) => sum + item.price,
+                    0
+                  );
+
+                  return (
+                    <tr
+                      key={booking.id}
+                      style={{
+                        borderBottom: "1px solid #eee",
+                      }}
+                    >
+                      <td>{booking.id}</td>
+
+                      <td>
+                        {customer?.customer_code || booking.customer_id}
+                      </td>
+
+                      <td>
+                        {items.map((item, index) => (
+                          <div key={index}>
+                            {item.name}
+                          </div>
+                        ))}
+                      </td>
+
+                      <td>{total.toFixed(2)} جنيه</td>
+
+                      <td>{booking.booking_date}</td>
+
+                      <td>{booking.booking_time}</td>
+
+                      <td>
+                        <select
+                          value={getBookingStatus(booking)}
+                          onChange={(e) =>
+                            updateStatus(booking.id, e.target.value)
+                          }
+                          style={{
+                            padding: 8,
+                            minWidth: 110,
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            border: "1px solid #ddd",
+                          }}
+                        >
+                          <option value="pending">جديد</option>
+                          <option value="confirmed">مؤكد</option>
+                          <option value="completed">مكتمل</option>
+                          <option value="cancelled">ملغي</option>
+                        </select>
+                      </td>
+
+                      <td>{booking.notes || "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    );
+  }
+
   return (
     <main
       dir="rtl"
       style={{
-        maxWidth: 1000,
+        maxWidth: 1100,
         margin: "30px auto",
         padding: 20,
         fontFamily: "Arial",
@@ -127,7 +322,7 @@ export default function BookingsPage() {
       <h2>قائمة الحجوزات</h2>
 
       <p style={{ fontWeight: "bold" }}>
-        عدد الحجوزات: {bookings.length}
+        إجمالي عدد الحجوزات: {bookings.length}
       </p>
 
       {message && (
@@ -144,98 +339,8 @@ export default function BookingsPage() {
         </p>
       )}
 
-      <div style={{ overflowX: "auto" }}>
-        <table
-          width="100%"
-          border="1"
-          cellPadding="10"
-          style={{
-            borderCollapse: "collapse",
-            textAlign: "center",
-            background: "white",
-          }}
-        >
-          <thead style={{ background: "#fce7f3" }}>
-            <tr>
-              <th>رقم الحجز</th>
-              <th>كود العميلة</th>
-              <th>الخدمات</th>
-              <th>الإجمالي</th>
-              <th>التاريخ</th>
-              <th>الوقت</th>
-              <th>الحالة</th>
-              <th>الملاحظات</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {bookings.map((booking) => {
-              const customer = customers.find(
-                (item) => String(item.id) === String(booking.customer_id)
-              );
-
-              const items = getBookingServices(booking);
-
-              const total = items.reduce(
-                (sum, item) => sum + item.price,
-                0
-              );
-
-              return (
-                <tr key={booking.id}>
-                  <td>{booking.id}</td>
-
-                  <td>
-                    {customer?.customer_code || booking.customer_id}
-                  </td>
-
-                  <td>
-                    {items.map((item, index) => (
-                      <div key={index}>
-                        {item.name}
-                      </div>
-                    ))}
-                  </td>
-
-                  <td>{total.toFixed(2)} جنيه</td>
-
-                  <td>{booking.booking_date}</td>
-
-                  <td>{booking.booking_time}</td>
-
-                  <td>
-                    <select
-                      value={booking.status || "pending"}
-                      onChange={(e) =>
-                        updateStatus(booking.id, e.target.value)
-                      }
-                      style={{
-                        padding: 8,
-                        minWidth: 110,
-                        borderRadius: 6,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <option value="pending">جديد</option>
-                      <option value="confirmed">مؤكد</option>
-                      <option value="completed">مكتمل</option>
-                      <option value="cancelled">ملغي</option>
-                    </select>
-                  </td>
-
-                  <td>{booking.notes}</td>
-                </tr>
-              );
-            })}
-
-            {bookings.length === 0 && (
-              <tr>
-                <td colSpan="8">لا توجد حجوزات حتى الآن</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* عرض الأقسام بالترتيب المحدد */}
+      {bookingGroups.map((group) => renderBookingTable(group))}
     </main>
   );
 }
