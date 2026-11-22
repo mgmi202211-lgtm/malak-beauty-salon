@@ -296,6 +296,20 @@ async function findCustomer(phoneValue = customerPhone) {
     );
   }
 }
+}
+
+// تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
+function normalizePhone(value) {
+  return String(value || "")
+    .replace(/[٠-٩]/g, (digit) =>
+      String(digit.charCodeAt(0) - 0x0660)
+    )
+    .replace(/[۰-۹]/g, (digit) =>
+      String(digit.charCodeAt(0) - 0x06f0)
+    )
+    .replace(/\D/g, "");
+}
+
 // البحث التلقائي بعد إدخال رقم الهاتف
 useEffect(() => {
   const phone = normalizePhone(customerPhone);
