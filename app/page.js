@@ -75,6 +75,7 @@ function Dashboard() {
   const [customerMessage, setCustomerMessage] = useState("");
   const [selectedServices, setSelectedServices] = useState([]);
   const [serviceToAdd, setServiceToAdd] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
   const [bookingDate, setBookingDate] = useState(todayDate());
   const [bookingTime, setBookingTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -399,7 +400,11 @@ function Dashboard() {
     (sum, service) => sum + Number(service.price || 0),
     0
   );
-
+const filteredServices = services.filter((service) =>
+  String(service.service_name || "")
+    .toLowerCase()
+    .includes(serviceSearch.trim().toLowerCase())
+);
   // حفظ العميلة والحجز والخدمات
   async function saveInvoice(event) {
     event.preventDefault();
@@ -1139,23 +1144,42 @@ function Dashboard() {
                 alignItems: "end",
               }}
             >
-              <div>
-                <label style={labelStyle}>الخدمات المتاحة</label>
+            <div>
+  <label style={labelStyle}>بحث عن الخدمة</label>
 
-                <select
-                  style={inputStyle}
-                  value={serviceToAdd}
-                  onChange={(e) => setServiceToAdd(e.target.value)}
-                >
-                  <option value="">اختاري الخدمة</option>
+  <input
+    style={{
+      ...inputStyle,
+      marginBottom: "10px",
+    }}
+    type="search"
+    value={serviceSearch}
+    onChange={(e) => setServiceSearch(e.target.value)}
+    placeholder="اكتبي اسم الخدمة للبحث..."
+  />
 
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.service_name} — {money(service.price)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+  <label style={labelStyle}>الخدمات المتاحة</label>
+
+  <select
+    style={inputStyle}
+    value={serviceToAdd}
+    onChange={(e) => setServiceToAdd(e.target.value)}
+  >
+    <option value="">اختاري الخدمة</option>
+
+    {filteredServices.map((service) => (
+      <option key={service.id} value={service.id}>
+        {service.service_name} — {money(service.price)}
+      </option>
+    ))}
+  </select>
+
+  {serviceSearch.trim() && filteredServices.length === 0 && (
+    <p style={{ color: "#e6c58c", fontSize: "13px" }}>
+      لا توجد خدمة بهذا الاسم
+    </p>
+  )}
+</div>
 
               <button
                 type="button"
