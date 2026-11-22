@@ -214,14 +214,17 @@ function Dashboard() {
       });
 
       // تجهيز أحدث خمسة حجوزات
-      const latest = [...bookings]
-        .sort((a, b) =>
-          `${b.booking_date} ${b.booking_time || ""}`.localeCompare(
-            `${a.booking_date} ${a.booking_time || ""}`
-          )
-        )
-        .slice(0, 5)
-        .map((booking) => {
+   
+const latest = [...bookings]
+  .filter((booking) => booking.status !== "completed")
+  .sort((a, b) =>
+    `${b.booking_date} ${b.booking_time || ""}`.localeCompare(
+      `${a.booking_date} ${a.booking_time || ""}`
+    )
+  )
+  .slice(0, 5)
+  .map((booking) => {
+
           const customer = customersById.get(
             String(booking.customer_id)
           );
