@@ -317,6 +317,11 @@ useEffect(() => {
     }
 
     await isn't allowed in non-async function
+      const { data, error } = await supabase
+  .from("customers")
+  .select("*")
+  .eq("phone", phone)
+  .limit(2);
       .from("customers")
       .select("*")
       .eq("phone", phone)
