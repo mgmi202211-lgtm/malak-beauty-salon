@@ -316,7 +316,7 @@ useEffect(() => {
       return;
     }
 
-    const { data, error } = await supabase
+    await isn't allowed in non-async function
       .from("customers")
       .select("*")
       .eq("phone", phone)
@@ -432,44 +432,46 @@ try
       return;
     }
 
-    setSaving(true);
+setSaving(true);
 
-    let bookingId = null;
+let bookingId = null;
 
-    try {
-      let customer = customerFound;
+try {
+  let customer = customerFound;
 
-      // إعادة التأكد من رقم الهاتف قبل إنشاء عميلة جديدة
-      const { data: existingCustomers, error: searchError } =
-        await supabase
-          .from("customers")
-          .select("*")
-          .eq("phone", phone)
-          .limit(2);
+  const { data: existingCustomers, error: searchError } =
+    await supabase
+      .from("customers")
+      .select("*")
+      .eq("phone", phone)
+      .limit(2);
 
-      if (searchError) throw searchError;
+  if (searchError) throw searchError;
 
-     if (existingCustomers && existingCustomers.length > 0) {
-  customer = existingCustomers[0];
-} else {
-  if (!name) {
-    setFormError("اكتبي اسم العميلة الجديدة");
-    return;
+  if (existingCustomers && existingCustomers.length > 0) {
+    customer = existingCustomers[0];
+  } else {
+    if (!name) {
+      setFormError("اكتبي اسم العميلة الجديدة");
+      return;
+    }
+
+    const { data: newCustomer, error: customerError } =
+      await supabase
+        .from("customers")
+        .insert({
+          full_name: name,
+          phone: phone,
+        })
+        .select()
+        .single();
+
+    if (customerError) throw customerError;
+
+    customer = newCustomer;
   }
 
-  const { data: newCustomer, error: customerError } = await supabase
-    .from("customers")
-    .insert({
-      full_name: name,
-      phone: phone,
-    })
-    .select()
-    .single();
-
-  if (customerError) throw customerError;
-
-  customer = newCustomer;
-}
+  // اترك بقية كود إنشاء الحجز وحفظ الخدمات كما هو
 
       // إنشاء الحجز
       const { data: newBooking, error: bookingError } = await supabase
