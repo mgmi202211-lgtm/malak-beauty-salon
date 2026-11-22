@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
 import AuthGuard from "./components/AuthGuard";
-
 // تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
 function normalizePhone(value) {
   return String(value || "")
@@ -17,7 +16,6 @@ function normalizePhone(value) {
     )
     .replace(/\D/g, "");
 }
-
 const todayDate = () => {
   const d = new Date();
   const y = d.getFullYear();
