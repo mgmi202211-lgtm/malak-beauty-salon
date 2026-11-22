@@ -17,16 +17,41 @@ function formatMoney(value) {
   })} جنيه`;
 }
 
+const paymentMethods = [
+  { value: "cash", label: "كاش" },
+  { value: "instapay", label: "إنستا باي" },
+  { value: "vodafone_cash", label: "فودافون كاش" },
+];
+
+function getPaymentMethodLabel(value) {
+  return (
+    paymentMethods.find((method) => method.value === value)?.label ||
+    "غير محدد"
+  );
+}
+
 export default function AccountingPage() {
   const [expenses, setExpenses] = useState([]);
-  const [completedBookings, setCompletedBookings] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
   const [bookingServices, setBookingServices] = useState([]);
+  const [payments, setPayments] = useState([]);
+
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [savingDiscount, setSavingDiscount] = useState(false);
 
   const [reportPeriod, setReportPeriod] = useState("daily");
   const [reportDate, setReportDate] = useState(getToday());
+
+  const [selectedBooking, setSelectedBooking] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(getToday());
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentNotes, setPaymentNotes] = useState("");
+
+  const [discountDrafts, setDiscountDrafts] = useState({});
 
   async function loadExpenses() {
     setLoading(true);
@@ -37,6 +62,7 @@ export default function AccountingPage() {
       bookingResult,
       serviceResult,
       bookingServicesResult,
+      paymentResult,
     ] = await Promise.all([
       supabase
         .from("expenses")
@@ -45,8 +71,10 @@ export default function AccountingPage() {
 
       supabase
         .from("bookings")
-        .select("id, service_id, booking_date, booking_time, status")
-        .eq("status", "completed"),
+        .select(
+          "id, service_id, booking_date, booking_time, status, discount_amount"
+        )
+        .order("booking_date", { ascending: false }),
 
       supabase
         .from("services")
@@ -55,37 +83,51 @@ export default function AccountingPage() {
       supabase
         .from("booking_services")
         .select("booking_id, service_id, price"),
+
+      supabase
+        .from("booking_payments")
+        .select(
+          "id, booking_id, amount, payment_date, payment_method, notes, created_at"
+        )
+        .order("payment_date", { ascending: false }),
     ]);
 
     setLoading(false);
 
     if (expenseResult.error) {
-      setMessage(
-        "خطأ في تحميل المصروفات: " + expenseResult.error.message
-      );
+      setMessage("خطأ في تحميل المصروفات: " + expenseResult.error.message);
       return;
     }
 
     if (
       bookingResult.error ||
       serviceResult.error ||
-      bookingServicesResult.error
+      bookingServicesResult.error ||
+      paymentResult.error
     ) {
       setMessage(
-        "خطأ في تحميل الإيرادات: " +
+        "خطأ في تحميل بيانات الحسابات: " +
           (
             bookingResult.error?.message ||
             serviceResult.error?.message ||
-            bookingServicesResult.error?.message
+            bookingServicesResult.error?.message ||
+            paymentResult.error?.message
           )
       );
       return;
     }
 
     setExpenses(expenseResult.data || []);
-    setCompletedBookings(bookingResult.data || []);
+    setBookings(bookingResult.data || []);
     setServices(serviceResult.data || []);
     setBookingServices(bookingServicesResult.data || []);
+    setPayments(paymentResult.data || []);
+
+    const drafts = {};
+    (bookingResult.data || []).forEach((booking) => {
+      drafts[booking.id] = String(booking.discount_amount || 0);
+    });
+    setDiscountDrafts(drafts);
   }
 
   useEffect(() => {
@@ -101,7 +143,7 @@ export default function AccountingPage() {
       .eq("id", id);
 
     if (error) {
-      setMessage("تعذر الحذف: " + error.message);
+      setMessage("تعذر حذف المصروف: " + error.message);
       return;
     }
 
@@ -114,13 +156,11 @@ export default function AccountingPage() {
       (item) => String(item.id) === String(serviceId)
     );
 
-  // جلب جميع خدمات الحجز وأسعارها المحفوظة وقت الفاتورة
   const getBookingServiceItems = (booking) => {
     const items = bookingServices.filter(
       (item) => String(item.booking_id) === String(booking.id)
     );
 
-    // للحجوزات القديمة التي لا تحتوي على تفاصيل خدمات
     if (items.length === 0) {
       const service = getService(booking.service_id);
 
@@ -131,7 +171,6 @@ export default function AccountingPage() {
           service_id: booking.service_id,
           price: service.price,
           service_name: service.service_name,
-          fallback: true,
         },
       ];
     }
@@ -143,29 +182,56 @@ export default function AccountingPage() {
         ...item,
         service_name:
           service?.service_name || `خدمة رقم ${item.service_id}`,
-        fallback: false,
       };
     });
   };
 
-  // إجمالي إيراد الحجز من جميع خدماته
   const getBookingTotal = (booking) =>
     getBookingServiceItems(booking).reduce(
       (sum, item) => sum + Number(item.price || 0),
       0
     );
 
+  const getBookingPayments = (bookingId) =>
+    payments.filter(
+      (payment) => String(payment.booking_id) === String(bookingId)
+    );
+
+  const getBookingPaid = (bookingId) =>
+    getBookingPayments(bookingId).reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0
+    );
+
+  const getBookingDiscount = (booking) =>
+    Math.max(0, Number(booking.discount_amount || 0));
+
+  const getBookingNet = (booking) =>
+    Math.max(0, getBookingTotal(booking) - getBookingDiscount(booking));
+
+  const getBookingRemaining = (booking) =>
+    Math.max(0, getBookingNet(booking) - getBookingPaid(booking.id));
+
   const totalExpenses = expenses.reduce(
     (sum, item) => sum + Number(item.amount || 0),
     0
   );
 
-  const totalRevenue = completedBookings.reduce(
-    (sum, booking) => sum + getBookingTotal(booking),
+  const totalRevenue = payments.reduce(
+    (sum, item) => sum + Number(item.amount || 0),
+    0
+  );
+
+  const totalRemaining = bookings.reduce(
+    (sum, booking) => sum + getBookingRemaining(booking),
     0
   );
 
   const netProfit = totalRevenue - totalExpenses;
+
+  const completedBookings = bookings.filter(
+    (booking) => booking.status === "completed"
+  );
 
   const reportStart =
     reportPeriod === "daily"
@@ -188,10 +254,11 @@ export default function AccountingPage() {
       item.expense_date <= reportEnd
   );
 
-  const reportBookings = completedBookings.filter(
+  // المقبوضات تُحسب حسب تاريخ استلام الدفعة الفعلي
+  const reportPayments = payments.filter(
     (item) =>
-      item.booking_date >= reportStart &&
-      item.booking_date <= reportEnd
+      item.payment_date >= reportStart &&
+      item.payment_date <= reportEnd
   );
 
   const reportTotalExpenses = reportExpenses.reduce(
@@ -199,13 +266,137 @@ export default function AccountingPage() {
     0
   );
 
-  const reportTotalRevenue = reportBookings.reduce(
-    (sum, booking) => sum + getBookingTotal(booking),
+  const reportTotalRevenue = reportPayments.reduce(
+    (sum, item) => sum + Number(item.amount || 0),
     0
   );
 
   const reportNetProfit =
     reportTotalRevenue - reportTotalExpenses;
+
+  const methodTotals = paymentMethods.map((method) => ({
+    ...method,
+    amount: reportPayments
+      .filter((payment) => payment.payment_method === method.value)
+      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+  }));
+
+  const availableBookings = bookings.filter(
+    (booking) => getBookingRemaining(booking) > 0
+  );
+
+  const selectedBookingData = bookings.find(
+    (booking) => String(booking.id) === String(selectedBooking)
+  );
+
+  async function addPayment(event) {
+    event.preventDefault();
+    setMessage("");
+
+    if (!selectedBookingData) {
+      setMessage("من فضلك اختر الحجز أولًا");
+      return;
+    }
+
+    const amount = Number(paymentAmount);
+    const remaining = getBookingRemaining(selectedBookingData);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage("يجب إدخال مبلغ صحيح أكبر من صفر");
+      return;
+    }
+
+    if (amount > remaining) {
+      setMessage(
+        `المبلغ أكبر من المتبقي. المبلغ المتبقي هو ${formatMoney(remaining)}`
+      );
+      return;
+    }
+
+    if (!paymentDate) {
+      setMessage("من فضلك اختر تاريخ الدفع");
+      return;
+    }
+
+    if (
+      !paymentMethods.some((method) => method.value === paymentMethod)
+    ) {
+      setMessage("طريقة الدفع غير صحيحة");
+      return;
+    }
+
+    setSavingPayment(true);
+
+    const { error } = await supabase
+      .from("booking_payments")
+      .insert({
+        booking_id: selectedBookingData.id,
+        amount,
+        payment_date: paymentDate,
+        payment_method: paymentMethod,
+        notes: paymentNotes.trim() || null,
+      });
+
+    setSavingPayment(false);
+
+    if (error) {
+      setMessage("تعذر تسجيل الدفعة: " + error.message);
+      return;
+    }
+
+    setMessage("تم تسجيل الدفعة بنجاح");
+
+    setPaymentAmount("");
+    setPaymentNotes("");
+    setSelectedBooking("");
+
+    await loadExpenses();
+  }
+
+  async function saveDiscount(booking) {
+    setMessage("");
+
+    const discount = Number(discountDrafts[booking.id]);
+
+    if (!Number.isFinite(discount) || discount < 0) {
+      setMessage("قيمة الخصم غير صحيحة");
+      return;
+    }
+
+    const total = getBookingTotal(booking);
+
+    if (discount > total) {
+      setMessage("الخصم لا يمكن أن يكون أكبر من إجمالي الحجز");
+      return;
+    }
+
+    const alreadyPaid = getBookingPaid(booking.id);
+    const newNet = total - discount;
+
+    if (alreadyPaid > newNet) {
+      setMessage(
+        "لا يمكن زيادة الخصم؛ لأن المبلغ المدفوع بالفعل أكبر من صافي الفاتورة الجديد"
+      );
+      return;
+    }
+
+    setSavingDiscount(true);
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({ discount_amount: discount })
+      .eq("id", booking.id);
+
+    setSavingDiscount(false);
+
+    if (error) {
+      setMessage("تعذر حفظ الخصم: " + error.message);
+      return;
+    }
+
+    setMessage("تم حفظ الخصم بنجاح");
+    await loadExpenses();
+  }
 
   const cardStyle = {
     background: "#fff",
@@ -224,24 +415,33 @@ export default function AccountingPage() {
     fontSize: "14px",
   };
 
+  const inputStyle = {
+    width: "100%",
+    padding: "11px",
+    border: "1px solid #e7c8d6",
+    borderRadius: "9px",
+    fontSize: "14px",
+    background: "white",
+  };
+
   const tableStyle = {
     width: "100%",
     borderCollapse: "collapse",
-    minWidth: "650px",
+    minWidth: "750px",
   };
 
   const cellStyle = {
-    padding: "14px 12px",
+    padding: "13px 10px",
     borderBottom: "1px solid #f3e5eb",
     textAlign: "center",
-    fontSize: "14px",
+    fontSize: "13px",
   };
 
   return (
     <main
       dir="rtl"
       style={{
-        maxWidth: "1200px",
+        maxWidth: "1250px",
         margin: "auto",
         padding: "24px",
         fontFamily: "Arial, sans-serif",
@@ -261,7 +461,6 @@ export default function AccountingPage() {
         }
       `}</style>
 
-      {/* رأس الصفحة */}
       <header
         style={{
           background: "linear-gradient(135deg, #8f2855, #c46b91)",
@@ -281,7 +480,7 @@ export default function AccountingPage() {
         </h1>
 
         <p style={{ margin: 0, color: "#fff0f5" }}>
-          متابعة الإيرادات والمصروفات والأرباح
+          متابعة المقبوضات والمصروفات والخصومات والمتبقي
         </p>
       </header>
 
@@ -289,13 +488,13 @@ export default function AccountingPage() {
       <section
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
           gap: "16px",
           marginBottom: "28px",
         }}
       >
         <div style={{ ...cardStyle, borderTop: "5px solid #bd8b35" }}>
-          <div style={{ color: "#8b6a2d" }}>إجمالي الإيرادات</div>
+          <div style={{ color: "#8b6a2d" }}>إجمالي المقبوضات</div>
           <h2 style={{ color: "#9b7025", marginBottom: 0 }}>
             {formatMoney(totalRevenue)}
           </h2>
@@ -309,7 +508,7 @@ export default function AccountingPage() {
         </div>
 
         <div style={{ ...cardStyle, borderTop: "5px solid #548b70" }}>
-          <div style={{ color: "#397451" }}>صافي الربح</div>
+          <div style={{ color: "#397451" }}>صافي المقبوضات بعد المصروفات</div>
           <h2
             style={{
               color: netProfit >= 0 ? "#397451" : "#b42318",
@@ -321,11 +520,198 @@ export default function AccountingPage() {
         </div>
 
         <div style={{ ...cardStyle, borderTop: "5px solid #80618f" }}>
-          <div style={{ color: "#80618f" }}>الحجوزات المكتملة</div>
+          <div style={{ color: "#80618f" }}>المبالغ المتبقية</div>
           <h2 style={{ color: "#80618f", marginBottom: 0 }}>
+            {formatMoney(totalRemaining)}
+          </h2>
+        </div>
+
+        <div style={{ ...cardStyle, borderTop: "5px solid #548b70" }}>
+          <div style={{ color: "#397451" }}>الحجوزات المكتملة</div>
+          <h2 style={{ color: "#397451", marginBottom: 0 }}>
             {completedBookings.length}
           </h2>
         </div>
+      </section>
+
+      {message && (
+        <div
+          style={{
+            background: "#fff0f4",
+            border: "1px solid #efc4d5",
+            color: "#922c5c",
+            padding: "14px",
+            borderRadius: "10px",
+            marginBottom: "20px",
+            lineHeight: 1.7,
+          }}
+        >
+          {message}
+        </div>
+      )}
+
+      {/* تسجيل دفعة */}
+      <section
+        className="no-print"
+        style={{ ...cardStyle, marginBottom: "28px" }}
+      >
+        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
+          تسجيل دفعة جديدة
+        </h2>
+
+        <p style={{ color: "#88727e", fontSize: "14px" }}>
+          اختر الحجز وسجل المبلغ وطريقة الدفع وتاريخ الاستلام.
+        </p>
+
+        <form
+          onSubmit={addPayment}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: "15px",
+            alignItems: "end",
+          }}
+        >
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>
+              الحجز
+            </label>
+
+            <select
+              value={selectedBooking}
+              onChange={(event) => setSelectedBooking(event.target.value)}
+              required
+              style={inputStyle}
+            >
+              <option value="">اختر الحجز</option>
+              {availableBookings.map((booking) => (
+                <option key={booking.id} value={booking.id}>
+                  حجز رقم {booking.id} - متبقي{" "}
+                  {Number(getBookingRemaining(booking)).toFixed(2)} جنيه
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>
+              المبلغ المدفوع
+            </label>
+
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              max={
+                selectedBookingData
+                  ? getBookingRemaining(selectedBookingData)
+                  : undefined
+              }
+              value={paymentAmount}
+              onChange={(event) => setPaymentAmount(event.target.value)}
+              placeholder="المبلغ بالجنيه"
+              required
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>
+              طريقة الدفع
+            </label>
+
+            <select
+              value={paymentMethod}
+              onChange={(event) => setPaymentMethod(event.target.value)}
+              required
+              style={inputStyle}
+            >
+              {paymentMethods.map((method) => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>
+              تاريخ الدفع
+            </label>
+
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(event) => setPaymentDate(event.target.value)}
+              required
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>
+              ملاحظات
+            </label>
+
+            <input
+              type="text"
+              value={paymentNotes}
+              onChange={(event) => setPaymentNotes(event.target.value)}
+              placeholder="ملاحظات اختيارية"
+              style={inputStyle}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={savingPayment || availableBookings.length === 0}
+            className="accounting-button"
+            style={{
+              ...buttonStyle,
+              background: "#922c5c",
+              color: "white",
+              height: "43px",
+              opacity:
+                savingPayment || availableBookings.length === 0 ? 0.6 : 1,
+            }}
+          >
+            {savingPayment ? "جاري التسجيل..." : "تسجيل الدفعة"}
+          </button>
+        </form>
+
+        {availableBookings.length === 0 && (
+          <p style={{ color: "#88727e", marginBottom: 0 }}>
+            لا توجد حجوزات عليها مبالغ متبقية حاليًا.
+          </p>
+        )}
+
+        {selectedBookingData && (
+          <div
+            style={{
+              marginTop: "18px",
+              padding: "14px",
+              background: "#fff7fa",
+              borderRadius: "10px",
+              lineHeight: 1.9,
+            }}
+          >
+            <div>
+              إجمالي الحجز: {formatMoney(getBookingTotal(selectedBookingData))}
+            </div>
+            <div>
+              الخصم: {formatMoney(getBookingDiscount(selectedBookingData))}
+            </div>
+            <div>
+              صافي الفاتورة: {formatMoney(getBookingNet(selectedBookingData))}
+            </div>
+            <div>
+              المدفوع: {formatMoney(getBookingPaid(selectedBookingData.id))}
+            </div>
+            <strong style={{ color: "#922c5c" }}>
+              المتبقي: {formatMoney(getBookingRemaining(selectedBookingData))}
+            </strong>
+          </div>
+        )}
       </section>
 
       {/* إدارة المصروفات */}
@@ -364,21 +750,6 @@ export default function AccountingPage() {
           + إضافة مصروف جديد
         </a>
       </section>
-
-      {message && (
-        <div
-          style={{
-            background: "#fff0f4",
-            border: "1px solid #efc4d5",
-            color: "#922c5c",
-            padding: "14px",
-            borderRadius: "10px",
-            marginBottom: "20px",
-          }}
-        >
-          {message}
-        </div>
-      )}
 
       {/* التقارير */}
       <section style={{ ...cardStyle, marginBottom: "28px" }}>
@@ -453,20 +824,14 @@ export default function AccountingPage() {
                 ? reportDate
                 : reportDate.slice(0, 7)
             }
-            onChange={(e) =>
+            onChange={(event) =>
               setReportDate(
                 reportPeriod === "daily"
-                  ? e.target.value
-                  : `${e.target.value}-01`
+                  ? event.target.value
+                  : `${event.target.value}-01`
               )
             }
-            style={{
-              width: "100%",
-              padding: "12px",
-              border: "1px solid #e7c8d6",
-              borderRadius: "10px",
-              fontSize: "15px",
-            }}
+            style={inputStyle}
           />
         </div>
 
@@ -479,7 +844,7 @@ export default function AccountingPage() {
           }}
         >
           <div style={{ ...cardStyle, background: "#fffaf0" }}>
-            <div style={{ color: "#98702d" }}>إيرادات الفترة</div>
+            <div style={{ color: "#98702d" }}>المقبوضات خلال الفترة</div>
             <h2 style={{ color: "#98702d" }}>
               {formatMoney(reportTotalRevenue)}
             </h2>
@@ -493,7 +858,9 @@ export default function AccountingPage() {
           </div>
 
           <div style={{ ...cardStyle, background: "#f3faf5" }}>
-            <div style={{ color: "#397451" }}>صافي ربح الفترة</div>
+            <div style={{ color: "#397451" }}>
+              صافي المقبوضات بعد المصروفات
+            </div>
             <h2
               style={{
                 color: reportNetProfit >= 0 ? "#397451" : "#b42318",
@@ -504,8 +871,37 @@ export default function AccountingPage() {
           </div>
         </div>
 
+        <h3 style={{ color: "#922c5c", marginTop: "25px" }}>
+          المقبوضات حسب طريقة الدفع
+        </h3>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: "12px",
+          }}
+        >
+          {methodTotals.map((method) => (
+            <div
+              key={method.value}
+              style={{
+                background: "#fff7fa",
+                padding: "17px",
+                borderRadius: "12px",
+                border: "1px solid #f1dce5",
+              }}
+            >
+              <div style={{ color: "#806b77" }}>{method.label}</div>
+              <strong style={{ color: "#922c5c", fontSize: "19px" }}>
+                {formatMoney(method.amount)}
+              </strong>
+            </div>
+          ))}
+        </div>
+
         <p style={{ marginBottom: 0, color: "#806b77" }}>
-          عدد الحجوزات المكتملة: {reportBookings.length}
+          عدد الدفعات خلال الفترة: {reportPayments.length}
         </p>
       </section>
 
@@ -576,10 +972,65 @@ export default function AccountingPage() {
         )}
       </section>
 
+      {/* سجل الدفعات */}
+      <section style={{ ...cardStyle, marginBottom: "28px" }}>
+        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
+          سجل الدفعات والمقبوضات
+        </h2>
+
+        {loading ? (
+          <p>جاري تحميل الدفعات...</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="accounting-table" style={tableStyle}>
+              <thead style={{ background: "#f8e8ef" }}>
+                <tr>
+                  <th style={cellStyle}>رقم الحجز</th>
+                  <th style={cellStyle}>المبلغ</th>
+                  <th style={cellStyle}>طريقة الدفع</th>
+                  <th style={cellStyle}>تاريخ الاستلام</th>
+                  <th style={cellStyle}>ملاحظات</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {payments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td style={cellStyle}>{payment.booking_id}</td>
+                    <td
+                      style={{
+                        ...cellStyle,
+                        color: "#397451",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {formatMoney(payment.amount)}
+                    </td>
+                    <td style={cellStyle}>
+                      {getPaymentMethodLabel(payment.payment_method)}
+                    </td>
+                    <td style={cellStyle}>{payment.payment_date}</td>
+                    <td style={cellStyle}>{payment.notes || "-"}</td>
+                  </tr>
+                ))}
+
+                {payments.length === 0 && (
+                  <tr>
+                    <td colSpan="5" style={cellStyle}>
+                      لا توجد دفعات مسجلة حتى الآن
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       {/* سجل الحجوزات */}
       <section style={cardStyle}>
         <h2 style={{ color: "#922c5c", marginTop: 0 }}>
-          سجل الحجوزات المكتملة والإيرادات
+          سجل الحجوزات والفواتير
         </h2>
 
         {loading ? (
@@ -592,19 +1043,34 @@ export default function AccountingPage() {
                   <th style={cellStyle}>رقم الحجز</th>
                   <th style={cellStyle}>الخدمات وأسعارها</th>
                   <th style={cellStyle}>التاريخ</th>
-                  <th style={cellStyle}>الوقت</th>
-                  <th style={cellStyle}>إجمالي الإيراد</th>
+                  <th style={cellStyle}>الإجمالي</th>
+                  <th style={cellStyle}>الخصم</th>
+                  <th style={cellStyle}>صافي الفاتورة</th>
+                  <th style={cellStyle}>المدفوع</th>
+                  <th style={cellStyle}>المتبقي</th>
+                  <th className="no-print" style={cellStyle}>حفظ الخصم</th>
                 </tr>
               </thead>
 
               <tbody>
-                {completedBookings.map((booking) => {
+                {bookings.map((booking) => {
                   const items = getBookingServiceItems(booking);
-                  const bookingTotal = getBookingTotal(booking);
+                  const total = getBookingTotal(booking);
+                  const discount = getBookingDiscount(booking);
+                  const net = getBookingNet(booking);
+                  const paid = getBookingPaid(booking.id);
+                  const remaining = getBookingRemaining(booking);
 
                   return (
                     <tr key={booking.id}>
-                      <td style={cellStyle}>{booking.id}</td>
+                      <td style={cellStyle}>
+                        {booking.id}
+                        <div style={{ color: "#88727e", fontSize: "11px" }}>
+                          {booking.status === "completed"
+                            ? "مكتمل"
+                            : "غير مكتمل"}
+                        </div>
+                      </td>
 
                       <td style={cellStyle}>
                         {items.length > 0 ? (
@@ -639,11 +1105,42 @@ export default function AccountingPage() {
                         )}
                       </td>
 
-                      <td style={cellStyle}>{booking.booking_date}</td>
+                      <td style={cellStyle}>
+                        {booking.booking_date}
+                        <div>{booking.booking_time || "-"}</div>
+                      </td>
+
+                      <td style={cellStyle}>{formatMoney(total)}</td>
 
                       <td style={cellStyle}>
-                        {booking.booking_time || "-"}
+                        <input
+                          className="no-print"
+                          type="number"
+                          min="0"
+                          max={total}
+                          step="0.01"
+                          value={discountDrafts[booking.id] ?? "0"}
+                          onChange={(event) =>
+                            setDiscountDrafts((previous) => ({
+                              ...previous,
+                              [booking.id]: event.target.value,
+                            }))
+                          }
+                          style={{
+                            ...inputStyle,
+                            width: "105px",
+                            textAlign: "center",
+                          }}
+                        />
+                        <span className="no-print" style={{ display: "none" }}>
+                          {formatMoney(discount)}
+                        </span>
+                        <span style={{ display: "none" }} className="print-only">
+                          {formatMoney(discount)}
+                        </span>
                       </td>
+
+                      <td style={cellStyle}>{formatMoney(net)}</td>
 
                       <td
                         style={{
@@ -652,16 +1149,43 @@ export default function AccountingPage() {
                           fontWeight: "bold",
                         }}
                       >
-                        {formatMoney(bookingTotal)}
+                        {formatMoney(paid)}
+                      </td>
+
+                      <td
+                        style={{
+                          ...cellStyle,
+                          color: remaining > 0 ? "#b42318" : "#397451",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {formatMoney(remaining)}
+                      </td>
+
+                      <td className="no-print" style={cellStyle}>
+                        <button
+                          type="button"
+                          disabled={savingDiscount}
+                          onClick={() => saveDiscount(booking)}
+                          style={{
+                            ...buttonStyle,
+                            background: "#922c5c",
+                            color: "white",
+                            padding: "8px 12px",
+                            opacity: savingDiscount ? 0.6 : 1,
+                          }}
+                        >
+                          حفظ
+                        </button>
                       </td>
                     </tr>
                   );
                 })}
 
-                {completedBookings.length === 0 && (
+                {bookings.length === 0 && (
                   <tr>
-                    <td colSpan="5" style={cellStyle}>
-                      لا توجد حجوزات مكتملة حتى الآن
+                    <td colSpan="9" style={cellStyle}>
+                      لا توجد حجوزات حتى الآن
                     </td>
                   </tr>
                 )}
@@ -675,12 +1199,12 @@ export default function AccountingPage() {
             color: "#88727e",
             marginTop: "20px",
             fontSize: "13px",
+            lineHeight: 1.8,
           }}
         >
-          ملاحظة: يتم احتساب إيرادات كل حجز من أسعار الخدمات المحفوظة
-          وقت إنشاء الفاتورة. وفي حالة الحجوزات القديمة التي لا تحتوي
-          على تفاصيل خدمات محفوظة، يتم استخدام سعر الخدمة الأساسية
-          الحالي كحل احتياطي. يتم احتساب الحجوزات المكتملة فقط.
+          يتم احتساب المقبوضات من الدفعات المسجلة فعليًا، ويُحدد تاريخ
+          الإيراد حسب تاريخ استلام الدفعة. ويمكن تسجيل أكثر من دفعة
+          للحجز الواحد، مع متابعة الخصم والمدفوع والمتبقي.
         </p>
       </section>
 
