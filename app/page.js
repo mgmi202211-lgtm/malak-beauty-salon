@@ -108,8 +108,9 @@ function Dashboard() {
     setServices(data || []);
   }
 
-  async function loadDashboard() {
-    setLoading(true);
+ 
+  async function loadDashboard({ showLoading = true } = {}) {
+    if (showLoading) setLoading(true);
     setErrorMessage("");
 
     try {
@@ -142,37 +143,67 @@ function Dashboard() {
       const expenses = expensesResult.data || [];
       const bookingServices = bookingServicesResult.data || [];
 
+      // تجهيز خرائط للوصول السريع للبيانات بدل البحث المتكرر
+      const customersById = new Map(
+        customers.map((customer) => [
+          String(customer.id),
+          customer,
+        ])
+      );
+
+      const servicesById = new Map(
+        allServices.map((service) => [
+          String(service.id),
+          service,
+        ])
+      );
+
+      const bookingServicesByBookingId = new Map();
+
+      bookingServices.forEach((item) => {
+        const bookingId = String(item.booking_id);
+
+        if (!bookingServicesByBookingId.has(bookingId)) {
+          bookingServicesByBookingId.set(bookingId, []);
+        }
+
+        bookingServicesByBookingId.get(bookingId).push(item);
+      });
+
+      // حساب حجوزات اليوم
       const todayBookings = bookings.filter(
         (booking) => booking.booking_date === today
       );
 
+      // حساب مصروفات اليوم
       const todayExpenses = expenses
         .filter((expense) => expense.expense_date === today)
-        .reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+        .reduce(
+          (sum, expense) => sum + Number(expense.amount || 0),
+          0
+        );
 
-      const todayRevenue = todayBookings
-        .filter((booking) => booking.status === "completed")
-        .reduce((sum, booking) => {
-          const savedServices = bookingServices.filter(
-            (item) => String(item.booking_id) === String(booking.id)
+      // حساب إيرادات اليوم بنفس القاعدة السابقة
+      let todayRevenue = 0;
+
+      todayBookings.forEach((booking) => {
+        if (booking.status !== "completed") return;
+
+        const savedServices =
+          bookingServicesByBookingId.get(String(booking.id)) || [];
+
+        if (savedServices.length > 0) {
+          savedServices.forEach((item) => {
+            todayRevenue += Number(item.price || 0);
+          });
+        } else {
+          const service = servicesById.get(
+            String(booking.service_id)
           );
 
-          if (savedServices.length > 0) {
-            return (
-              sum +
-              savedServices.reduce(
-                (total, item) => total + Number(item.price || 0),
-                0
-              )
-            );
-          }
-
-          const service = allServices.find(
-            (item) => String(item.id) === String(booking.service_id)
-          );
-
-          return sum + Number(service?.price || 0);
-        }, 0);
+          todayRevenue += Number(service?.price || 0);
+        }
+      });
 
       setStats({
         customers: customers.length,
@@ -182,6 +213,7 @@ function Dashboard() {
         profit: todayRevenue - todayExpenses,
       });
 
+      // تجهيز أحدث خمسة حجوزات
       const latest = [...bookings]
         .sort((a, b) =>
           `${b.booking_date} ${b.booking_time || ""}`.localeCompare(
@@ -190,35 +222,38 @@ function Dashboard() {
         )
         .slice(0, 5)
         .map((booking) => {
-          const customer = customers.find(
-            (item) => String(item.id) === String(booking.customer_id)
+          const customer = customersById.get(
+            String(booking.customer_id)
           );
 
-          const savedServices = bookingServices.filter(
-            (item) => String(item.booking_id) === String(booking.id)
-          );
+          const savedServices =
+            bookingServicesByBookingId.get(String(booking.id)) || [];
 
-          let serviceNames = [];
+          const serviceNames = [];
           let bookingTotal = 0;
 
           if (savedServices.length > 0) {
             savedServices.forEach((item) => {
-              const service = allServices.find(
-                (s) => String(s.id) === String(item.service_id)
+              const service = servicesById.get(
+                String(item.service_id)
               );
 
               serviceNames.push(
-                service?.service_name || `خدمة رقم ${item.service_id}`
+                service?.service_name ||
+                  `خدمة رقم ${item.service_id}`
               );
 
               bookingTotal += Number(item.price || 0);
             });
           } else {
-            const service = allServices.find(
-              (item) => String(item.id) === String(booking.service_id)
+            const service = servicesById.get(
+              String(booking.service_id)
             );
 
-            serviceNames.push(service?.service_name || "غير معروف");
+            serviceNames.push(
+              service?.service_name || "غير معروف"
+            );
+
             bookingTotal = Number(service?.price || 0);
           }
 
@@ -233,11 +268,14 @@ function Dashboard() {
       setRecentBookings(latest);
     } catch (error) {
       console.error("Dashboard Error:", error);
-      setErrorMessage("تعذر تحميل بيانات لوحة التحكم: " + error.message);
+      setErrorMessage(
+        "تعذر تحميل بيانات لوحة التحكم: " + error.message
+      );
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }
+
 
   useEffect(() => {
     loadDashboard();
@@ -480,7 +518,7 @@ try {
       setBookingTime("");
       setNotes("");
 
-      await loadDashboard();
+    await loadDashboard({ showLoading: false });
     } catch (error) {
       console.error("Save Invoice Error:", error);
       setFormError("تعذر حفظ الفاتورة: " + error.message);
