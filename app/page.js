@@ -345,10 +345,58 @@ useEffect(() => {
       setCustomerMessage("رقم جديد — سيتم تسجيل العميلة عند حفظ الفاتورة.");
     }
   }
-useEffect(() => {
-  const phone = customerPhone.trim();
+// البحث عن العميلة برقم الهاتف
+async function findCustomer(phoneValue = customerPhone) {
+  const phone = normalizePhone(phoneValue);
 
-  if (!/^\d{11}$/.test(phone)) return;
+  setFormError("");
+  setFormMessage("");
+  setCustomerFound(null);
+  setCustomerName("");
+  setCustomerMessage("");
+
+  if (phone.length !== 11) return;
+
+  setCustomerMessage("جاري البحث عن العميلة...");
+
+  const { data, error } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("phone", phone)
+    .limit(2);
+
+  if (customerPhoneRef.current !== phone) return;
+
+  if (error) {
+    setCustomerMessage("");
+    setFormError("تعذر البحث عن العميلة: " + error.message);
+    return;
+  }
+
+  if (data && data.length > 0) {
+    const customer = data[0];
+
+    setCustomerFound(customer);
+    setCustomerName(customer.full_name || "");
+    setCustomerMessage(
+      data.length > 1
+        ? "تم العثور على أكثر من سجل بنفس الرقم، سيتم استخدام أول سجل."
+        : "تم العثور على العميلة المسجلة."
+    );
+  } else {
+    setCustomerFound(null);
+    setCustomerName("");
+    setCustomerMessage(
+      "رقم جديد — اكتبي اسم العميلة وسيتم تسجيلها عند حفظ الفاتورة."
+    );
+  }
+}
+
+// البحث التلقائي بعد إدخال رقم الهاتف
+useEffect(() => {
+  const phone = normalizePhone(customerPhone);
+
+  if (phone.length !== 11) return;
 
   const timer = setTimeout(() => {
     findCustomer(phone);
@@ -356,7 +404,6 @@ useEffect(() => {
 
   return () => clearTimeout(timer);
 }, [customerPhone]);
-  function addService() {
     setFormError("");
     setFormMessage("");
 
