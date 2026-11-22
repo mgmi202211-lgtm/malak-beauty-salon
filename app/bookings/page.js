@@ -157,4 +157,85 @@ export default function BookingsPage() {
         >
           <thead style={{ background: "#fce7f3" }}>
             <tr>
-              <th>رقم الحجز
+              <th>رقم الحجز</th>
+              <th>كود العميلة</th>
+              <th>الخدمات</th>
+              <th>الإجمالي</th>
+              <th>التاريخ</th>
+              <th>الوقت</th>
+              <th>الحالة</th>
+              <th>الملاحظات</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {bookings.map((booking) => {
+              const customer = customers.find(
+                (item) => String(item.id) === String(booking.customer_id)
+              );
+
+              const items = getBookingServices(booking);
+
+              const total = items.reduce(
+                (sum, item) => sum + item.price,
+                0
+              );
+
+              return (
+                <tr key={booking.id}>
+                  <td>{booking.id}</td>
+
+                  <td>
+                    {customer?.customer_code || booking.customer_id}
+                  </td>
+
+                  <td>
+                    {items.map((item, index) => (
+                      <div key={index}>
+                        {item.name}
+                      </div>
+                    ))}
+                  </td>
+
+                  <td>{total.toFixed(2)} جنيه</td>
+
+                  <td>{booking.booking_date}</td>
+
+                  <td>{booking.booking_time}</td>
+
+                  <td>
+                    <select
+                      value={booking.status || "pending"}
+                      onChange={(e) =>
+                        updateStatus(booking.id, e.target.value)
+                      }
+                      style={{
+                        padding: 8,
+                        minWidth: 110,
+                        borderRadius: 6,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="pending">جديد</option>
+                      <option value="confirmed">مؤكد</option>
+                      <option value="completed">مكتمل</option>
+                      <option value="cancelled">ملغي</option>
+                    </select>
+                  </td>
+
+                  <td>{booking.notes}</td>
+                </tr>
+              );
+            })}
+
+            {bookings.length === 0 && (
+              <tr>
+                <td colSpan="8">لا توجد حجوزات حتى الآن</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  );
+}
