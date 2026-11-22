@@ -7,7 +7,6 @@ import { supabase } from "../../lib/supabase";
 
 export default function ExpensesPage() {
   const today = new Date().toLocaleDateString("en-CA");
-
   const [expenseName, setExpenseName] = useState("");
   const [amount, setAmount] = useState("");
   const [expenseDate, setExpenseDate] = useState(today);
@@ -42,13 +41,15 @@ export default function ExpensesPage() {
   }
 
   return (
-    <main style={{
-      direction: "rtl",
-      padding: 25,
-      maxWidth: 600,
-      margin: "auto",
-      fontFamily: "Arial"
-    }}>
+    <main
+      style={{
+        direction: "rtl",
+        padding: 25,
+        maxWidth: 600,
+        margin: "auto",
+        fontFamily: "Arial",
+      }}
+    >
       <h1>إضافة مصروف جديد</h1>
 
       <form onSubmit={addExpense}>
@@ -58,7 +59,11 @@ export default function ExpensesPage() {
           onChange={(e) => setExpenseName(e.target.value)}
           required
           placeholder="مثال: شراء مستلزمات"
-          style={{ padding: 12, width: "100%", boxSizing: "border-box" }}
+          style={{
+            padding: 12,
+            width: "100%",
+            boxSizing: "border-box",
+          }}
         />
 
         <p>المبلغ بالجنيه</p>
@@ -70,7 +75,11 @@ export default function ExpensesPage() {
           onChange={(e) => setAmount(e.target.value)}
           required
           placeholder="اكتب المبلغ"
-          style={{ padding: 12, width: "100%", boxSizing: "border-box" }}
+          style={{
+            padding: 12,
+            width: "100%",
+            boxSizing: "border-box",
+          }}
         />
 
         <p>تاريخ المصروف</p>
@@ -79,7 +88,11 @@ export default function ExpensesPage() {
           value={expenseDate}
           onChange={(e) => setExpenseDate(e.target.value)}
           required
-          style={{ padding: 12, width: "100%", boxSizing: "border-box" }}
+          style={{
+            padding: 12,
+            width: "100%",
+            boxSizing: "border-box",
+          }}
         />
 
         <p>ملاحظات</p>
@@ -91,7 +104,7 @@ export default function ExpensesPage() {
             padding: 12,
             width: "100%",
             boxSizing: "border-box",
-            minHeight: 90
+            minHeight: 90,
           }}
         />
 
@@ -106,7 +119,7 @@ export default function ExpensesPage() {
             color: "white",
             border: "none",
             borderRadius: 8,
-            cursor: "pointer"
+            cursor: "pointer",
           }}
         >
           {loading ? "جاري الحفظ..." : "حفظ المصروف"}
@@ -119,9 +132,46 @@ export default function ExpensesPage() {
         </p>
       )}
 
-      <p style={{ marginTop: 25 }}>
-        <Link href="/accounting">العودة إلى الحسابات</Link>
-      </p>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          marginTop: 25,
+        }}
+      >
+        <Link
+          href="/"
+          style={{
+            display: "block",
+            padding: 14,
+            background: "#9d174d",
+            color: "white",
+            borderRadius: 8,
+            textAlign: "center",
+            textDecoration: "none",
+            fontWeight: "bold",
+          }}
+        >
+          العودة إلى الصفحة الرئيسية
+        </Link>
+
+        <Link
+          href="/accounting"
+          style={{
+            display: "block",
+            padding: 14,
+            background: "#f8e8ef",
+            color: "#9d174d",
+            borderRadius: 8,
+            textAlign: "center",
+            textDecoration: "none",
+            fontWeight: "bold",
+          }}
+        >
+          العودة إلى الحسابات
+        </Link>
+      </div>
     </main>
   );
 }
