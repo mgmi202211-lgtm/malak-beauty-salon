@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -5,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
 import AuthGuard from "./components/AuthGuard";
+
 // تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
 function normalizePhone(value) {
   return String(value || "")
@@ -16,6 +18,7 @@ function normalizePhone(value) {
     )
     .replace(/\D/g, "");
 }
+
 const todayDate = () => {
   const d = new Date();
   const y = d.getFullYear();
@@ -108,7 +111,6 @@ function Dashboard() {
     setServices(data || []);
   }
 
- 
   async function loadDashboard({ showLoading = true } = {}) {
     if (showLoading) setLoading(true);
     setErrorMessage("");
@@ -143,7 +145,7 @@ function Dashboard() {
       const expenses = expensesResult.data || [];
       const bookingServices = bookingServicesResult.data || [];
 
-      // تجهيز خرائط للوصول السريع للبيانات بدل البحث المتكرر
+      // تجهيز خرائط للوصول السريع للبيانات
       const customersById = new Map(
         customers.map((customer) => [
           String(customer.id),
@@ -183,7 +185,7 @@ function Dashboard() {
           0
         );
 
-      // حساب إيرادات اليوم بنفس القاعدة السابقة
+      // حساب إيرادات اليوم
       let todayRevenue = 0;
 
       todayBookings.forEach((booking) => {
@@ -213,18 +215,16 @@ function Dashboard() {
         profit: todayRevenue - todayExpenses,
       });
 
-      // تجهيز أحدث خمسة حجوزات
-   
-const latest = [...bookings]
-  .filter((booking) => booking.status !== "completed")
-  .sort((a, b) =>
-    `${b.booking_date} ${b.booking_time || ""}`.localeCompare(
-      `${a.booking_date} ${a.booking_time || ""}`
-    )
-  )
-  .slice(0, 5)
-  .map((booking) => {
-
+      // تجهيز أحدث خمسة حجوزات غير مكتملة
+      const latest = [...bookings]
+        .filter((booking) => booking.status !== "completed")
+        .sort((a, b) =>
+          `${b.booking_date} ${b.booking_time || ""}`.localeCompare(
+            `${a.booking_date} ${a.booking_time || ""}`
+          )
+        )
+        .slice(0, 5)
+        .map((booking) => {
           const customer = customersById.get(
             String(booking.customer_id)
           );
@@ -279,127 +279,116 @@ const latest = [...bookings]
     }
   }
 
-
   useEffect(() => {
     loadDashboard();
     loadServices();
   }, []);
 
   // البحث عن العميلة برقم الهاتف
-async function findCustomer(phoneValue = customerPhone) {
-  const phone = normalizePhone(phoneValue);
+  async function findCustomer(phoneValue = customerPhone) {
+    const phone = normalizePhone(phoneValue);
 
-  setFormError("");
-  setFormMessage("");
-  setCustomerFound(null);
-  setCustomerName("");
-  setCustomerMessage("");
-
-  if (phone.length !== 11) {
-    return;
-  }
-
-  setCustomerMessage("جاري البحث عن العميلة...");
-
-  const { data, error } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("phone", phone)
-    .limit(2);
-
-  // تجاهل نتيجة البحث لو الرقم اتغير أثناء البحث
-  if (customerPhoneRef.current !== phone) {
-    return;
-  }
-
-  if (error) {
-    setCustomerMessage("");
-    setFormError("تعذر البحث عن العميلة: " + error.message);
-    return;
-  }
-
-  if (data && data.length > 0) {
-    const customer = data[0];
-
-    setCustomerFound(customer);
-    setCustomerName(customer.full_name || "");
-
-    setCustomerMessage(
-      data.length > 1
-        ? "تم العثور على أكثر من سجل بنفس الرقم، سيتم استخدام أول سجل."
-        : "تم العثور على العميلة المسجلة."
-    );
-  } else {
+    setFormError("");
+    setFormMessage("");
     setCustomerFound(null);
     setCustomerName("");
-    setCustomerMessage(
-      "رقم جديد — اكتبي اسم العميلة وسيتم تسجيلها عند حفظ الفاتورة."
+    setCustomerMessage("");
+
+    if (phone.length !== 11) {
+      return;
+    }
+
+    setCustomerMessage("جاري البحث عن العميلة...");
+
+    const { data, error } = await supabase
+      .from("customers")
+      .select("*")
+      .eq("phone", phone)
+      .limit(2);
+
+    // تجاهل نتيجة البحث لو الرقم اتغير أثناء البحث
+    if (customerPhoneRef.current !== phone) {
+      return;
+    }
+
+    if (error) {
+      setCustomerMessage("");
+      setFormError("تعذر البحث عن العميلة: " + error.message);
+      return;
+    }
+
+    if (data && data.length > 0) {
+      const customer = data[0];
+
+      setCustomerFound(customer);
+      setCustomerName(customer.full_name || "");
+
+      setCustomerMessage(
+        data.length > 1
+          ? "تم العثور على أكثر من سجل بنفس الرقم، سيتم استخدام أول سجل."
+          : "تم العثور على العميلة المسجلة."
+      );
+    } else {
+      setCustomerFound(null);
+      setCustomerName("");
+      setCustomerMessage(
+        "رقم جديد — اكتبي اسم العميلة وسيتم تسجيلها عند حفظ الفاتورة."
+      );
+    }
+  }
+
+  // البحث التلقائي بعد إدخال رقم الهاتف
+  useEffect(() => {
+    const phone = normalizePhone(customerPhone);
+
+    if (phone.length !== 11) return;
+
+    const timer = setTimeout(() => {
+      findCustomer(phone);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [customerPhone]);
+
+  function addService() {
+    setFormError("");
+    setFormMessage("");
+
+    if (!serviceToAdd) {
+      setFormError("اختاري خدمة أولاً");
+      return;
+    }
+
+    const service = services.find(
+      (item) => String(item.id) === String(serviceToAdd)
     );
-  }
-}
 
-// تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
-function normalizePhone(value) {
-  return String(value || "")
-    .replace(/[٠-٩]/g, (digit) =>
-      String(digit.charCodeAt(0) - 0x0660)
-    )
-    .replace(/[۰-۹]/g, (digit) =>
-      String(digit.charCodeAt(0) - 0x06f0)
-    )
-    .replace(/\D/g, "");
-}
+    if (!service) {
+      setFormError("الخدمة المختارة غير موجودة");
+      return;
+    }
 
-// البحث التلقائي بعد إدخال رقم الهاتف
-useEffect(() => {
-  const phone = normalizePhone(customerPhone);
+    const alreadyAdded = selectedServices.some(
+      (item) => String(item.id) === String(service.id)
+    );
 
-  if (phone.length !== 11) return;
+    if (alreadyAdded) {
+      setFormError("الخدمة موجودة بالفعل في الفاتورة");
+      return;
+    }
 
-  const timer = setTimeout(() => {
-    findCustomer(phone);
-  }, 400);
+    setSelectedServices((prev) => [
+      ...prev,
+      {
+        id: service.id,
+        service_name: service.service_name,
+        price: Number(service.price || 0),
+      },
+    ]);
 
-  return () => clearTimeout(timer);
-}, [customerPhone]);
-function addService() {
-  setFormError("");
-  setFormMessage("");
-
-  if (!serviceToAdd) {
-    setFormError("اختاري خدمة أولاً");
-    return;
+    setServiceToAdd("");
   }
 
-  const service = services.find(
-    (item) => String(item.id) === String(serviceToAdd)
-  );
-
-  if (!service) {
-    setFormError("الخدمة المختارة غير موجودة");
-    return;
-  }
-
-  const alreadyAdded = selectedServices.some(
-    (item) => String(item.id) === String(service.id)
-  );
-
-  if (alreadyAdded) {
-    setFormError("الخدمة موجودة بالفعل في الفاتورة");
-    return;
-  }
-
-  setSelectedServices((prev) => [
-    ...prev,
-    {
-      id: service.id,
-      service_name: service.service_name,
-      price: Number(service.price || 0),
-    },
-  ]);
-
-  setServiceToAdd("");
-}
   function removeService(serviceId) {
     setSelectedServices((prev) =>
       prev.filter((item) => String(item.id) !== String(serviceId))
@@ -412,80 +401,83 @@ function addService() {
   );
 
   // حفظ العميلة والحجز والخدمات
-async function saveInvoice(event) {
-  event.preventDefault();
+  async function saveInvoice(event) {
+    event.preventDefault();
 
-  setFormError("");
-  setFormMessage("");
+    setFormError("");
+    setFormMessage("");
 
-  const name = customerName.trim();
-  const phone = normalizePhone(customerPhone);
+    const name = customerName.trim();
+    const phone = normalizePhone(customerPhone);
 
-  if (!phone) {
-    setFormError("اكتبي رقم هاتف العميلة");
-    return;
-  }
-
-  if (phone.length !== 11) {
-    setFormError("رقم الهاتف يجب أن يتكون من 11 رقمًا");
-    return;
-  }
-
-  if (selectedServices.length === 0) {
-    setFormError("أضيفي خدمة واحدة على الأقل للفاتورة");
-    return;
-  }
-try {
-   setSaving(true);
-
-  let bookingId = null;
-  let customer = customerFound;
-
-  const { data: existingCustomers, error: searchError } =
-    await supabase
-      .from("customers")
-      .select("*")
-      .eq("phone", phone)
-      .limit(2);
-
-  if (searchError) throw searchError;
-
-  if (existingCustomers && existingCustomers.length > 0) {
-    customer = existingCustomers[0];
-  } else {
-    if (!name) {
-      setFormError("اكتبي اسم العميلة الجديدة");
+    if (!phone) {
+      setFormError("اكتبي رقم هاتف العميلة");
       return;
     }
 
-    const { data: newCustomer, error: customerError } =
-      await supabase
-        .from("customers")
-        .insert({
-          full_name: name,
-          phone: phone,
-        })
-        .select()
-        .single();
+    if (phone.length !== 11) {
+      setFormError("رقم الهاتف يجب أن يتكون من 11 رقمًا");
+      return;
+    }
 
-    if (customerError) throw customerError;
+    if (selectedServices.length === 0) {
+      setFormError("أضيفي خدمة واحدة على الأقل للفاتورة");
+      return;
+    }
 
-    customer = newCustomer;
-  }
+    try {
+      setSaving(true);
 
-       // إنشاء الحجز
-      const { data: newBooking, error: bookingError } = await supabase
-        .from("bookings")
-        .insert({
-          customer_id: customer.id,
-          service_id: selectedServices[0].id,
-          booking_date: bookingDate || todayDate(),
-          booking_time: bookingTime || new Date().toTimeString().slice(0, 8),
-          status: "pending",
-          notes: notes.trim(),
-        })
-        .select()
-        .single();
+      let bookingId = null;
+      let customer = customerFound;
+
+      const { data: existingCustomers, error: searchError } =
+        await supabase
+          .from("customers")
+          .select("*")
+          .eq("phone", phone)
+          .limit(2);
+
+      if (searchError) throw searchError;
+
+      if (existingCustomers && existingCustomers.length > 0) {
+        customer = existingCustomers[0];
+      } else {
+        if (!name) {
+          setFormError("اكتبي اسم العميلة الجديدة");
+          return;
+        }
+
+        const { data: newCustomer, error: customerError } =
+          await supabase
+            .from("customers")
+            .insert({
+              full_name: name,
+              phone: phone,
+            })
+            .select()
+            .single();
+
+        if (customerError) throw customerError;
+
+        customer = newCustomer;
+      }
+
+      // إنشاء الحجز
+      const { data: newBooking, error: bookingError } =
+        await supabase
+          .from("bookings")
+          .insert({
+            customer_id: customer.id,
+            service_id: selectedServices[0].id,
+            booking_date: bookingDate || todayDate(),
+            booking_time:
+              bookingTime || new Date().toTimeString().slice(0, 8),
+            status: "pending",
+            notes: notes.trim(),
+          })
+          .select()
+          .single();
 
       if (bookingError) throw bookingError;
 
@@ -508,11 +500,14 @@ try {
         throw servicesError;
       }
 
-      setFormMessage(`تم حفظ الفاتورة بنجاح — رقم الحجز: ${newBooking.id}`);
+      setFormMessage(
+        `تم حفظ الفاتورة بنجاح — رقم الحجز: ${newBooking.id}`
+      );
 
       // تجهيز فاتورة جديدة
       setCustomerName("");
       setCustomerPhone("");
+      customerPhoneRef.current = "";
       setCustomerFound(null);
       setCustomerMessage("");
       setSelectedServices([]);
@@ -521,7 +516,7 @@ try {
       setBookingTime("");
       setNotes("");
 
-    await loadDashboard({ showLoading: false });
+      await loadDashboard({ showLoading: false });
     } catch (error) {
       console.error("Save Invoice Error:", error);
       setFormError("تعذر حفظ الفاتورة: " + error.message);
@@ -629,9 +624,11 @@ try {
 
   return (
     <main
+      className="dashboard-main"
       dir="rtl"
       style={{
         maxWidth: "1300px",
+        width: "100%",
         margin: "auto",
         padding: "24px",
         fontFamily: "Arial, sans-serif",
@@ -641,15 +638,42 @@ try {
       }}
     >
       <style>{`
-        * { box-sizing: border-box; }
+        * {
+          box-sizing: border-box;
+        }
+
+        html,
+        body {
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+
+        .dashboard-main {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .dashboard-main button,
+        .dashboard-main input,
+        .dashboard-main select,
+        .dashboard-main textarea {
+          max-width: 100%;
+          font-family: Arial, sans-serif;
+        }
+
         .dashboard-link {
           transition: transform .2s, box-shadow .2s;
         }
+
         .dashboard-link:hover {
           transform: translateY(-4px);
           box-shadow: 0 9px 22px rgba(0,0,0,.25);
         }
-        .dashboard-table tr:hover { background: #fff7fa; }
+
+        .dashboard-table tr:hover {
+          background: #fff7fa;
+        }
+
         .gold-button {
           background: linear-gradient(135deg,#e6c58c,#b88b4a);
           color: #382333;
@@ -658,7 +682,9 @@ try {
           padding: 12px 19px;
           font-weight: bold;
           cursor: pointer;
+          white-space: nowrap;
         }
+
         .dark-button {
           background: #51374c;
           color: white;
@@ -667,9 +693,193 @@ try {
           padding: 11px 16px;
           cursor: pointer;
         }
+
+        .dashboard-table-wrap {
+          width: 100%;
+          max-width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        .dashboard-card-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit,minmax(195px,1fr));
+          gap: 16px;
+          margin-bottom: 28px;
+        }
+
+        .dashboard-links-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit,minmax(190px,1fr));
+          gap: 15px;
+        }
+
+        .dashboard-section {
+          min-width: 0;
+        }
+
+        .invoice-grid {
+          min-width: 0;
+        }
+
+        .invoice-grid > * {
+          min-width: 0;
+        }
+
+        .invoice-phone-row {
+          display: flex;
+          gap: 8px;
+          width: 100%;
+        }
+
+        .invoice-phone-row input {
+          min-width: 0;
+          flex: 1;
+        }
+
         @media (max-width: 600px) {
-          .dashboard-header { padding: 22px !important; }
-          .invoice-grid { grid-template-columns: 1fr !important; }
+          .dashboard-main {
+            padding: 12px !important;
+          }
+
+          .dashboard-header {
+            padding: 18px !important;
+            border-radius: 16px !important;
+            margin-bottom: 18px !important;
+          }
+
+          .dashboard-header h1 {
+            font-size: 25px !important;
+            line-height: 1.5;
+          }
+
+          .dashboard-header p {
+            line-height: 1.8;
+            font-size: 13px;
+          }
+
+          .dashboard-header > div:first-child {
+            font-size: 12px !important;
+          }
+
+          .dashboard-header button {
+            flex: 1 1 140px;
+            min-height: 44px;
+          }
+
+          .dashboard-section {
+            padding: 15px !important;
+            border-radius: 14px !important;
+          }
+
+          .invoice-grid {
+            grid-template-columns: minmax(0,1fr) !important;
+            gap: 14px !important;
+          }
+
+          .invoice-grid > * {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .invoice-grid button {
+            width: 100%;
+            min-height: 44px;
+          }
+
+          .invoice-phone-row {
+            flex-wrap: wrap;
+          }
+
+          .invoice-phone-row input {
+            flex: 1 1 100%;
+          }
+
+          .invoice-phone-row button {
+            flex: 1 1 100%;
+          }
+
+          .dashboard-card-grid {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+            gap: 10px !important;
+          }
+
+          .dashboard-card-grid > div {
+            min-width: 0;
+            padding: 14px !important;
+            border-radius: 13px !important;
+          }
+
+          .dashboard-card-grid h2 {
+            font-size: 18px !important;
+            line-height: 1.6;
+          }
+
+          .dashboard-card-grid span {
+            font-size: 12px !important;
+          }
+
+          .dashboard-links-grid {
+            grid-template-columns: repeat(2,minmax(0,1fr)) !important;
+            gap: 10px !important;
+          }
+
+          .dashboard-link {
+            min-width: 0;
+            padding: 15px !important;
+            border-radius: 13px !important;
+          }
+
+          .dashboard-link h3 {
+            font-size: 14px !important;
+            line-height: 1.6;
+          }
+
+          .dashboard-link p {
+            font-size: 12px !important;
+          }
+
+          .dashboard-link > div {
+            font-size: 25px !important;
+          }
+
+          .dashboard-main input,
+          .dashboard-main select,
+          .dashboard-main textarea {
+            font-size: 16px !important;
+            min-height: 44px;
+          }
+
+          .dashboard-main button {
+            min-height: 44px;
+          }
+
+          .dashboard-main textarea {
+            min-height: 85px;
+          }
+
+          .dashboard-table-wrap {
+            border-radius: 8px;
+          }
+
+          .dashboard-main h2 {
+            line-height: 1.5;
+          }
+        }
+
+        @media (max-width: 380px) {
+          .dashboard-card-grid,
+          .dashboard-links-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .dashboard-header h1 {
+            font-size: 22px !important;
+          }
+
+          .dashboard-header {
+            padding: 15px !important;
+          }
         }
       `}</style>
 
@@ -772,6 +982,7 @@ try {
 
       {/* شاشة استقبال العميلة */}
       <section
+        className="dashboard-section"
         style={{
           ...sectionStyle,
           background: "linear-gradient(145deg,#352638,#29202e)",
@@ -800,9 +1011,11 @@ try {
             >
               CUSTOMER RECEPTION
             </div>
+
             <h2 style={{ margin: "8px 0", color: "#f0d6a8" }}>
               استقبال عميلة جديدة
             </h2>
+
             <p style={{ color: "#d6c5d1", margin: 0, fontSize: "13px" }}>
               تسجيل بيانات العميلة وإعداد فاتورة الخدمات
             </p>
@@ -830,49 +1043,50 @@ try {
               gap: "18px",
             }}
           >
-           <div>
-  <label style={labelStyle}>رقم هاتف العميلة</label>
+            <div>
+              <label style={labelStyle}>رقم هاتف العميلة</label>
 
-  <div style={{ display: "flex", gap: "8px" }}>
-    <input
-      style={inputStyle}
-      type="tel"
-      inputMode="numeric"
-      maxLength={11}
-      value={customerPhone}
-      onChange={(e) => {
-        const value = normalizePhone(e.target.value);
+              <div className="invoice-phone-row">
+                <input
+                  style={inputStyle}
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={11}
+                  value={customerPhone}
+                  onChange={(e) => {
+                    const value = normalizePhone(e.target.value);
 
-        customerPhoneRef.current = value;
-        setCustomerPhone(value);
-        setCustomerName("");
-        setCustomerFound(null);
-        setCustomerMessage("");
-        setFormError("");
-        setFormMessage("");
-      }}
-      placeholder="أدخلي رقم الهاتف"
-      required
-    />
+                    customerPhoneRef.current = value;
+                    setCustomerPhone(value);
+                    setCustomerName("");
+                    setCustomerFound(null);
+                    setCustomerMessage("");
+                    setFormError("");
+                    setFormMessage("");
+                  }}
+                  placeholder="أدخلي رقم الهاتف"
+                  required
+                />
 
-    <button
-      type="button"
-      className="gold-button"
-      onClick={() => findCustomer(customerPhone)}
-    >
-      بحث
-    </button>
-  </div>
+                <button
+                  type="button"
+                  className="gold-button"
+                  onClick={() => findCustomer(customerPhone)}
+                >
+                  بحث
+                </button>
+              </div>
 
-  {customerMessage && (
-    <p style={{ color: "#e6c58c", fontSize: "13px" }}>
-      {customerMessage}
-    </p>
-  )}
-</div>
+              {customerMessage && (
+                <p style={{ color: "#e6c58c", fontSize: "13px" }}>
+                  {customerMessage}
+                </p>
+              )}
+            </div>
 
             <div>
               <label style={labelStyle}>اسم العميلة</label>
+
               <input
                 style={inputStyle}
                 value={customerName}
@@ -884,6 +1098,7 @@ try {
 
             <div>
               <label style={labelStyle}>تاريخ الموعد (اختياري)</label>
+
               <input
                 style={inputStyle}
                 type="date"
@@ -894,6 +1109,7 @@ try {
 
             <div>
               <label style={labelStyle}>وقت الموعد (اختياري)</label>
+
               <input
                 style={inputStyle}
                 type="time"
@@ -925,12 +1141,14 @@ try {
             >
               <div>
                 <label style={labelStyle}>الخدمات المتاحة</label>
+
                 <select
                   style={inputStyle}
                   value={serviceToAdd}
                   onChange={(e) => setServiceToAdd(e.target.value)}
                 >
                   <option value="">اختاري الخدمة</option>
+
                   {services.map((service) => (
                     <option key={service.id} value={service.id}>
                       {service.service_name} — {money(service.price)}
@@ -957,6 +1175,7 @@ try {
               borderRadius: "14px",
               padding: "18px",
               marginBottom: "20px",
+              minWidth: 0,
             }}
           >
             <h3
@@ -975,7 +1194,7 @@ try {
                 لم تتم إضافة خدمات بعد
               </p>
             ) : (
-              <div style={{ overflowX: "auto" }}>
+              <div className="dashboard-table-wrap">
                 <table
                   style={{
                     width: "100%",
@@ -991,6 +1210,7 @@ try {
                       <th style={{ padding: "12px" }}>إزالة</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {selectedServices.map((service) => (
                       <tr key={service.id}>
@@ -1002,6 +1222,7 @@ try {
                         >
                           {service.service_name}
                         </td>
+
                         <td
                           style={{
                             padding: "13px 12px",
@@ -1011,6 +1232,7 @@ try {
                         >
                           {money(service.price)}
                         </td>
+
                         <td
                           style={{
                             padding: "13px 12px",
@@ -1055,6 +1277,7 @@ try {
               <strong style={{ color: "#79445f", fontSize: "17px" }}>
                 إجمالي الفاتورة
               </strong>
+
               <strong style={{ color: "#8d5d32", fontSize: "23px" }}>
                 {money(invoiceTotal)}
               </strong>
@@ -1063,6 +1286,7 @@ try {
 
           <div style={{ marginBottom: "20px" }}>
             <label style={labelStyle}>ملاحظات</label>
+
             <textarea
               style={{
                 ...inputStyle,
@@ -1114,7 +1338,9 @@ try {
               opacity: saving ? 0.7 : 1,
             }}
           >
-            {saving ? "جاري حفظ الفاتورة..." : "✓ حفظ الفاتورة وإرسال الطلب"}
+            {saving
+              ? "جاري حفظ الفاتورة..."
+              : "✓ حفظ الفاتورة وإرسال الطلب"}
           </button>
         </form>
       </section>
@@ -1124,6 +1350,7 @@ try {
         <h2 style={{ color: "#e6c58c", fontSize: "21px" }}>
           ملخص الصالون
         </h2>
+
         <p style={{ color: "#c5afbf", fontSize: "14px" }}>
           نظرة سريعة على أداء الصالون اليوم
         </p>
@@ -1135,14 +1362,8 @@ try {
         </div>
       ) : (
         <>
-          <section
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(195px,1fr))",
-              gap: "16px",
-              marginBottom: "28px",
-            }}
-          >
+          {/* بطاقات الإحصائيات */}
+          <section className="dashboard-card-grid">
             {cards.map((card) => (
               <div
                 key={card.title}
@@ -1160,12 +1381,16 @@ try {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
+                    gap: "5px",
                   }}
                 >
                   <span style={{ color: "#ddcbd7", fontSize: "14px" }}>
                     {card.title}
                   </span>
-                  <span style={{ fontSize: "24px" }}>{card.icon}</span>
+
+                  <span style={{ fontSize: "24px" }}>
+                    {card.icon}
+                  </span>
                 </div>
 
                 <h2
@@ -1184,6 +1409,7 @@ try {
 
           {/* أحدث الحجوزات */}
           <section
+            className="dashboard-section"
             style={{
               ...sectionStyle,
               marginBottom: "28px",
@@ -1204,6 +1430,7 @@ try {
                 <h2 style={{ color: "#79445f", margin: "0 0 7px" }}>
                   أحدث الحجوزات
                 </h2>
+
                 <span style={{ color: "#927d89", fontSize: "13px" }}>
                   آخر خمسة حجوزات مسجلة
                 </span>
@@ -1223,9 +1450,11 @@ try {
             </div>
 
             {recentBookings.length === 0 ? (
-              <p style={{ color: "#927d89" }}>لا توجد حجوزات حتى الآن</p>
+              <p style={{ color: "#927d89" }}>
+                لا توجد حجوزات حتى الآن
+              </p>
             ) : (
-              <div style={{ overflowX: "auto" }}>
+              <div className="dashboard-table-wrap">
                 <table
                   className="dashboard-table"
                   style={{
@@ -1269,22 +1498,62 @@ try {
 
                       return (
                         <tr key={booking.id}>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             {booking.customerName}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb", minWidth: "180px", lineHeight: "1.8" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                              minWidth: "180px",
+                              lineHeight: "1.8",
+                            }}
+                          >
                             {booking.serviceName}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb", fontWeight: "bold", color: "#397451", whiteSpace: "nowrap" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                              fontWeight: "bold",
+                              color: "#397451",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
                             {money(booking.bookingTotal)}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             {booking.booking_date}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             {booking.booking_time || "-"}
                           </td>
-                          <td style={{ padding: "14px 12px", borderBottom: "1px solid #f3e5eb" }}>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                            }}
+                          >
                             <span
                               style={{
                                 background: status.background,
@@ -1313,13 +1582,7 @@ try {
               أقسام إدارة الصالون
             </h2>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))",
-                gap: "15px",
-              }}
-            >
+            <div className="dashboard-links-grid">
               {links.map((item) => (
                 <Link
                   key={item.href}
@@ -1340,11 +1603,24 @@ try {
                     {item.icon}
                   </div>
 
-                  <h3 style={{ color: "#e6c58c", fontSize: "17px", margin: "0 0 9px" }}>
+                  <h3
+                    style={{
+                      color: "#e6c58c",
+                      fontSize: "17px",
+                      margin: "0 0 9px",
+                    }}
+                  >
                     {item.title}
                   </h3>
 
-                  <p style={{ color: "#c5afbf", fontSize: "13px", lineHeight: "1.7", margin: 0 }}>
+                  <p
+                    style={{
+                      color: "#c5afbf",
+                      fontSize: "13px",
+                      lineHeight: "1.7",
+                      margin: 0,
+                    }}
+                  >
                     {item.description}
                   </p>
                 </Link>
@@ -1366,7 +1642,7 @@ try {
         MALAK BEAUTY SALON — نظام إدارة الصالون
       </footer>
     </main>
-   );
+  );
 }
 
 export default function Home() {
