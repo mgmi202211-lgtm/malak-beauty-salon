@@ -1,7 +1,7 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 
 export default function CustomersPage() {
@@ -152,9 +152,9 @@ export default function CustomersPage() {
       return;
     }
 
+    const updatedName = name.trim();
+
     setMessage("تم تعديل بيانات العميلة بنجاح");
-    cancelEditing();
-    await loadCustomers();
 
     if (
       selectedCustomer &&
@@ -162,10 +162,13 @@ export default function CustomersPage() {
     ) {
       setSelectedCustomer({
         ...selectedCustomer,
-        full_name: name.trim(),
+        full_name: updatedName,
         phone: cleanPhone,
       });
     }
+
+    cancelEditing();
+    await loadCustomers();
   }
 
   async function deleteCustomer(customer) {
@@ -300,13 +303,20 @@ export default function CustomersPage() {
     setBookingsLoading(false);
   }
 
+  // إصلاح البحث بالاسم أو الهاتف أو كود العميلة
   const filteredCustomers = customers.filter((customer) => {
     const query = search.trim().toLowerCase();
+    const phoneQuery = normalizePhone(query);
 
     return (
-      String(customer.full_name || "").toLowerCase().includes(query) ||
-      String(customer.phone || "").includes(normalizePhone(query)) ||
-      String(customer.customer_code || "").toLowerCase().includes(query)
+      String(customer.full_name || "")
+        .toLowerCase()
+        .includes(query) ||
+      (phoneQuery !== "" &&
+        normalizePhone(customer.phone).includes(phoneQuery)) ||
+      String(customer.customer_code || "")
+        .toLowerCase()
+        .includes(query)
     );
   });
 
@@ -345,6 +355,22 @@ export default function CustomersPage() {
         minHeight: "100vh",
       }}
     >
+      <Link
+        href="/"
+        style={{
+          display: "inline-block",
+          padding: "12px 20px",
+          background: colors.primary,
+          color: colors.white,
+          textDecoration: "none",
+          borderRadius: 10,
+          marginBottom: 20,
+          fontWeight: "bold",
+        }}
+      >
+        العودة إلى الصفحة الرئيسية
+      </Link>
+
       {message && (
         <div
           style={{
