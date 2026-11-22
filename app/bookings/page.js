@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -48,6 +49,16 @@ export default function BookingsPage() {
   }, []);
 
   async function updateStatus(id, status) {
+    const currentBooking = bookings.find(
+      (booking) => String(booking.id) === String(id)
+    );
+
+    // منع تغيير حالة الحجز بعد اكتماله
+    if (currentBooking && getBookingStatus(currentBooking) === "completed") {
+      setMessage("لا يمكن تغيير حالة حجز مكتمل.");
+      return;
+    }
+
     const { error } = await supabase
       .from("bookings")
       .update({ status })
@@ -226,6 +237,9 @@ export default function BookingsPage() {
                     0
                   );
 
+                  const isCompleted =
+                    getBookingStatus(booking) === "completed";
+
                   return (
                     <tr
                       key={booking.id}
@@ -256,6 +270,7 @@ export default function BookingsPage() {
                       <td>
                         <select
                           value={getBookingStatus(booking)}
+                          disabled={isCompleted}
                           onChange={(e) =>
                             updateStatus(booking.id, e.target.value)
                           }
@@ -263,8 +278,12 @@ export default function BookingsPage() {
                             padding: 8,
                             minWidth: 110,
                             borderRadius: 6,
-                            cursor: "pointer",
+                            cursor: isCompleted ? "not-allowed" : "pointer",
                             border: "1px solid #ddd",
+                            background: isCompleted ? "#e5e7eb" : "white",
+                            color: isCompleted ? "#15803d" : "#333",
+                            fontWeight: isCompleted ? "bold" : "normal",
+                            opacity: isCompleted ? 1 : 1,
                           }}
                         >
                           <option value="pending">جديد</option>
