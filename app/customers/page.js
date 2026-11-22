@@ -1,3 +1,4 @@
+```jsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -37,7 +38,7 @@ export default function CustomersPage() {
     text: "#35232c",
     muted: "#715b65",
     danger: "#b42336",
-    white: "#ffffff"
+    white: "#ffffff",
   };
 
   const inputStyle = {
@@ -50,7 +51,7 @@ export default function CustomersPage() {
     color: colors.text,
     background: colors.white,
     outlineColor: colors.primary,
-    fontFamily: "Arial"
+    fontFamily: "Arial",
   };
 
   const buttonStyle = {
@@ -62,7 +63,7 @@ export default function CustomersPage() {
     fontWeight: "bold",
     margin: "4px",
     fontFamily: "Arial",
-    transition: "0.2s"
+    transition: "0.2s",
   };
 
   const cardStyle = {
@@ -71,7 +72,7 @@ export default function CustomersPage() {
     border: `1px solid ${colors.border}`,
     borderRadius: "18px",
     background: colors.white,
-    boxShadow: "0 5px 20px rgba(157,23,77,0.07)"
+    boxShadow: "0 5px 20px rgba(157,23,77,0.07)",
   };
 
   async function loadCustomers() {
@@ -81,7 +82,7 @@ export default function CustomersPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage("خطأ في تحميل العملاء: " + error.message);
+      setMessage("خطأ في تحميل العميلات: " + error.message);
       return;
     }
 
@@ -92,27 +93,23 @@ export default function CustomersPage() {
     loadCustomers();
   }, []);
 
+  function startEditing(customer) {
+    setEditingId(customer.id);
+    setName(customer.full_name || "");
+    setPhone(normalizePhone(customer.phone || ""));
+    setMessage("");
+  }
+
+  function cancelEditing() {
+    setEditingId(null);
+    setName("");
+    setPhone("");
+    setMessage("");
+  }
+
   async function updateCustomer(e) {
     e.preventDefault();
 
     if (!editingId) return;
 
-    const cleanPhone = normalizePhone(phone);
-
-    if (!cleanPhone || cleanPhone.length !== 11) {
-      setMessage("يرجى إدخال رقم هاتف صحيح مكون من 11 رقمًا");
-      return;
-    }
-
-    if (!name.trim()) {
-      setMessage("يرجى إدخال اسم العميلة");
-      return;
-    }
-
-    setLoading(true);
-    setMessage("");
-
-    const { error } = await supabase
-      .from("customers")
-      .update({
-        full
+    const cleanPhone =
