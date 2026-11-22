@@ -296,7 +296,18 @@ async function findCustomer(phoneValue = customerPhone) {
     );
   }
 }
+// البحث التلقائي بعد إدخال رقم الهاتف
+useEffect(() => {
+  const phone = normalizePhone(customerPhone);
 
+  if (phone.length !== 11) return;
+
+  const timer = setTimeout(() => {
+    findCustomer(phone);
+  }, 400);
+
+  return () => clearTimeout(timer);
+}, [customerPhone]);
 useEffect(() => {
   const phone = normalizePhone(customerPhone);
 
@@ -346,7 +357,9 @@ useEffect(() => {
     }
   }
 // البحث عن العميلة برقم الهاتف
-async function findCustomer(phoneValue = customerPhone) {
+if (phone.length !== 11) {
+  return;
+}
   const phone = normalizePhone(phoneValue);
 
   setFormError("");
@@ -441,7 +454,44 @@ useEffect(() => {
 
     setServiceToAdd("");
   }
+function addService() {
+  setFormError("");
+  setFormMessage("");
 
+  if (!serviceToAdd) {
+    setFormError("اختاري خدمة أولاً");
+    return;
+  }
+
+  const service = services.find(
+    (item) => String(item.id) === String(serviceToAdd)
+  );
+
+  if (!service) {
+    setFormError("الخدمة المختارة غير موجودة");
+    return;
+  }
+
+  const alreadyAdded = selectedServices.some(
+    (item) => String(item.id) === String(service.id)
+  );
+
+  if (alreadyAdded) {
+    setFormError("الخدمة موجودة بالفعل في الفاتورة");
+    return;
+  }
+
+  setSelectedServices((prev) => [
+    ...prev,
+    {
+      id: service.id,
+      service_name: service.service_name,
+      price: Number(service.price || 0),
+    },
+  ]);
+
+  setServiceToAdd("");
+}
   function removeService(serviceId) {
     setSelectedServices((prev) =>
       prev.filter((item) => String(item.id) !== String(serviceId))
