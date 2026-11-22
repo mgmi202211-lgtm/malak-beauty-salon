@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -77,6 +76,7 @@ function Dashboard() {
   const [serviceToAdd, setServiceToAdd] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [serviceResultsOpen, setServiceResultsOpen] = useState(false);
+  const servicePickerRef = useRef(null);
   const [bookingDate, setBookingDate] = useState(todayDate());
   const [bookingTime, setBookingTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -286,6 +286,26 @@ function Dashboard() {
     loadServices();
   }, []);
 
+  // إغلاق قائمة الخدمات عند الضغط أو اللمس خارجها
+  useEffect(() => {
+    function handleOutsideClick(event) {
+      if (
+        servicePickerRef.current &&
+        !servicePickerRef.current.contains(event.target)
+      ) {
+        setServiceResultsOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("touchstart", handleOutsideClick);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("touchstart", handleOutsideClick);
+    };
+  }, []);
+
   // البحث عن العميلة برقم الهاتف
   async function findCustomer(phoneValue = customerPhone) {
     const phone = normalizePhone(phoneValue);
@@ -403,11 +423,13 @@ function Dashboard() {
     (sum, service) => sum + Number(service.price || 0),
     0
   );
-const filteredServices = services.filter((service) =>
-  String(service.service_name || "")
-    .toLowerCase()
-    .includes(serviceSearch.trim().toLowerCase())
-);
+
+  const filteredServices = services.filter((service) =>
+    String(service.service_name || "")
+      .toLowerCase()
+      .includes(serviceSearch.trim().toLowerCase())
+  );
+
   // حفظ العميلة والحجز والخدمات
   async function saveInvoice(event) {
     event.preventDefault();
@@ -520,6 +542,8 @@ const filteredServices = services.filter((service) =>
       setCustomerMessage("");
       setSelectedServices([]);
       setServiceToAdd("");
+      setServiceSearch("");
+      setServiceResultsOpen(false);
       setBookingDate(todayDate());
       setBookingTime("");
       setNotes("");
@@ -1147,95 +1171,103 @@ const filteredServices = services.filter((service) =>
                 alignItems: "end",
               }}
             >
-      <div style={{ position: "relative" }}>
-  <label style={labelStyle}>الخدمات المتاحة</label>
+              <div
+                ref={servicePickerRef}
+                style={{ position: "relative" }}
+              >
+                <label style={labelStyle}>الخدمات المتاحة</label>
 
-  <input
-    style={inputStyle}
-    type="search"
-    value={serviceSearch}
-    onFocus={() => setServiceResultsOpen(true)}
-    onChange={(e) => {
-      setServiceSearch(e.target.value);
-      setServiceToAdd("");
-      setServiceResultsOpen(true);
-    }}
-    placeholder="ابحثي عن الخدمة المطلوبة..."
-  />
+                <input
+                  style={inputStyle}
+                  type="search"
+                  value={serviceSearch}
+                  onFocus={() => setServiceResultsOpen(true)}
+                  onChange={(e) => {
+                    setServiceSearch(e.target.value);
+                    setServiceToAdd("");
+                    setServiceResultsOpen(true);
+                  }}
+                  placeholder="ابحثي عن الخدمة المطلوبة..."
+                />
 
-  {serviceResultsOpen && (
-    <div
-      style={{
-        position: "absolute",
-        top: "100%",
-        right: 0,
-        left: 0,
-        zIndex: 100,
-        background: "#fff",
-        border: "1px solid #e7cfda",
-        borderRadius: "10px",
-        marginTop: "5px",
-        maxHeight: "230px",
-        overflowY: "auto",
-        boxShadow: "0 8px 20px rgba(0,0,0,.2)",
-      }}
-    >
-      {filteredServices.length > 0 ? (
-        filteredServices.map((service) => (
-          <button
-            key={service.id}
-            type="button"
-            onClick={() => {
-              setServiceToAdd(String(service.id));
-              setServiceSearch(service.service_name);
-              setServiceResultsOpen(false);
-            }}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "10px",
-              width: "100%",
-              padding: "13px",
-              border: "none",
-              borderBottom: "1px solid #f0e4ea",
-              background:
-                String(service.id) === String(serviceToAdd)
-                  ? "#f8edf3"
-                  : "#fff",
-              color: "#422536",
-              textAlign: "right",
-              cursor: "pointer",
-              fontSize: "14px",
-            }}
-          >
-            <span>{service.service_name}</span>
-            <strong style={{ color: "#8d5d32", whiteSpace: "nowrap" }}>
-              {money(service.price)}
-            </strong>
-          </button>
-        ))
-      ) : (
-        <p
-          style={{
-            color: "#927d89",
-            padding: "12px",
-            margin: 0,
-            textAlign: "center",
-          }}
-        >
-          لا توجد خدمات مطابقة للبحث
-        </p>
-      )}
-    </div>
-  )}
+                {serviceResultsOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      right: 0,
+                      left: 0,
+                      zIndex: 100,
+                      background: "#fff",
+                      border: "1px solid #e7cfda",
+                      borderRadius: "10px",
+                      marginTop: "5px",
+                      maxHeight: "230px",
+                      overflowY: "auto",
+                      boxShadow: "0 8px 20px rgba(0,0,0,.2)",
+                    }}
+                  >
+                    {filteredServices.length > 0 ? (
+                      filteredServices.map((service) => (
+                        <button
+                          key={service.id}
+                          type="button"
+                          onClick={() => {
+                            setServiceToAdd(String(service.id));
+                            setServiceSearch(service.service_name);
+                            setServiceResultsOpen(false);
+                          }}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "10px",
+                            width: "100%",
+                            padding: "13px",
+                            border: "none",
+                            borderBottom: "1px solid #f0e4ea",
+                            background:
+                              String(service.id) === String(serviceToAdd)
+                                ? "#f8edf3"
+                                : "#fff",
+                            color: "#422536",
+                            textAlign: "right",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                          }}
+                        >
+                          <span>{service.service_name}</span>
+                          <strong
+                            style={{
+                              color: "#8d5d32",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {money(service.price)}
+                          </strong>
+                        </button>
+                      ))
+                    ) : (
+                      <p
+                        style={{
+                          color: "#927d89",
+                          padding: "12px",
+                          margin: 0,
+                          textAlign: "center",
+                        }}
+                      >
+                        لا توجد خدمات مطابقة للبحث
+                      </p>
+                    )}
+                  </div>
+                )}
 
-  {serviceToAdd && (
-    <p style={{ color: "#e6c58c", fontSize: "13px" }}>
-      تم اختيار الخدمة: {serviceSearch}
-    </p>
-  )}
-</div>
+                {serviceToAdd && (
+                  <p style={{ color: "#e6c58c", fontSize: "13px" }}>
+                    تم اختيار الخدمة: {serviceSearch}
+                  </p>
+                )}
+              </div>
 
               <button
                 type="button"
