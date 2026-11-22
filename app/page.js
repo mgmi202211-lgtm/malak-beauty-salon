@@ -315,8 +315,7 @@ useEffect(() => {
       setFormError("اكتبي رقم هاتف العميلة أولاً");
       return;
     }
-
-    await isn't allowed in non-async function
+    
       const { data, error } = await supabase
   .from("customers")
   .select("*")
@@ -408,40 +407,33 @@ useEffect(() => {
   );
 
   // حفظ العميلة والحجز والخدمات
-  async function saveInvoice(event) {
-    event.preventDefault();
+async function saveInvoice(event) {
+  event.preventDefault();
 
-    setFormError("");
-    setFormMessage("");
+  setFormError("");
+  setFormMessage("");
 
-   const name = customerName.trim();
-const phone = normalizePhone(customerPhone);
+  const name = customerName.trim();
+  const phone = normalizePhone(customerPhone);
 
-if (!phone) {
-  setFormError("اكتبي رقم هاتف العميلة");
-  return;
-}
+  if (!phone) {
+    setFormError("اكتبي رقم هاتف العميلة");
+    return;
+  }
 
-if (phone.length !== 11) {
-  setFormError("رقم الهاتف يجب أن يتكون من 11 رقمًا");
-  return;
-}
-try
-    if (!phone) {
-      setFormError("اكتبي رقم هاتف العميلة");
-      return;
-    }
+  if (phone.length !== 11) {
+    setFormError("رقم الهاتف يجب أن يتكون من 11 رقمًا");
+    return;
+  }
 
-    if (selectedServices.length === 0) {
-      setFormError("أضيفي خدمة واحدة على الأقل للفاتورة");
-      return;
-    }
-
-setSaving(true);
-
-let bookingId = null;
-
+  if (selectedServices.length === 0) {
+    setFormError("أضيفي خدمة واحدة على الأقل للفاتورة");
+    return;
+  }
 try {
+   setSaving(true);
+
+  let bookingId = null;
   let customer = customerFound;
 
   const { data: existingCustomers, error: searchError } =
@@ -476,9 +468,7 @@ try {
     customer = newCustomer;
   }
 
-  // اترك بقية كود إنشاء الحجز وحفظ الخدمات كما هو
-
-      // إنشاء الحجز
+       // إنشاء الحجز
       const { data: newBooking, error: bookingError } = await supabase
         .from("bookings")
         .insert({
