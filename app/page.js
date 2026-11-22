@@ -76,6 +76,7 @@ function Dashboard() {
   const [selectedServices, setSelectedServices] = useState([]);
   const [serviceToAdd, setServiceToAdd] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
+  const [serviceResultsOpen, setServiceResultsOpen] = useState(false);
   const [bookingDate, setBookingDate] = useState(todayDate());
   const [bookingTime, setBookingTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -388,6 +389,8 @@ function Dashboard() {
     ]);
 
     setServiceToAdd("");
+    setServiceSearch("");
+    setServiceResultsOpen(false);
   }
 
   function removeService(serviceId) {
@@ -1144,39 +1147,92 @@ const filteredServices = services.filter((service) =>
                 alignItems: "end",
               }}
             >
-            <div>
-  <label style={labelStyle}>بحث عن الخدمة</label>
-
-  <input
-    style={{
-      ...inputStyle,
-      marginBottom: "10px",
-    }}
-    type="search"
-    value={serviceSearch}
-    onChange={(e) => setServiceSearch(e.target.value)}
-    placeholder="اكتبي اسم الخدمة للبحث..."
-  />
-
+      <div style={{ position: "relative" }}>
   <label style={labelStyle}>الخدمات المتاحة</label>
 
-  <select
+  <input
     style={inputStyle}
-    value={serviceToAdd}
-    onChange={(e) => setServiceToAdd(e.target.value)}
-  >
-    <option value="">اختاري الخدمة</option>
+    type="search"
+    value={serviceSearch}
+    onFocus={() => setServiceResultsOpen(true)}
+    onChange={(e) => {
+      setServiceSearch(e.target.value);
+      setServiceToAdd("");
+      setServiceResultsOpen(true);
+    }}
+    placeholder="ابحثي عن الخدمة المطلوبة..."
+  />
 
-    {filteredServices.map((service) => (
-      <option key={service.id} value={service.id}>
-        {service.service_name} — {money(service.price)}
-      </option>
-    ))}
-  </select>
+  {serviceResultsOpen && (
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        right: 0,
+        left: 0,
+        zIndex: 100,
+        background: "#fff",
+        border: "1px solid #e7cfda",
+        borderRadius: "10px",
+        marginTop: "5px",
+        maxHeight: "230px",
+        overflowY: "auto",
+        boxShadow: "0 8px 20px rgba(0,0,0,.2)",
+      }}
+    >
+      {filteredServices.length > 0 ? (
+        filteredServices.map((service) => (
+          <button
+            key={service.id}
+            type="button"
+            onClick={() => {
+              setServiceToAdd(String(service.id));
+              setServiceSearch(service.service_name);
+              setServiceResultsOpen(false);
+            }}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "10px",
+              width: "100%",
+              padding: "13px",
+              border: "none",
+              borderBottom: "1px solid #f0e4ea",
+              background:
+                String(service.id) === String(serviceToAdd)
+                  ? "#f8edf3"
+                  : "#fff",
+              color: "#422536",
+              textAlign: "right",
+              cursor: "pointer",
+              fontSize: "14px",
+            }}
+          >
+            <span>{service.service_name}</span>
+            <strong style={{ color: "#8d5d32", whiteSpace: "nowrap" }}>
+              {money(service.price)}
+            </strong>
+          </button>
+        ))
+      ) : (
+        <p
+          style={{
+            color: "#927d89",
+            padding: "12px",
+            margin: 0,
+            textAlign: "center",
+          }}
+        >
+          لا توجد خدمات مطابقة للبحث
+        </p>
+      )}
+    </div>
+  )}
 
-  {serviceSearch.trim() && filteredServices.length === 0 && (
+  {serviceToAdd && (
     <p style={{ color: "#e6c58c", fontSize: "13px" }}>
-      لا توجد خدمة بهذا الاسم
+      تم اختيار الخدمة: {serviceSearch}
     </p>
   )}
 </div>
