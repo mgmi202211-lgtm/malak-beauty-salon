@@ -77,9 +77,15 @@ function Dashboard() {
   const [serviceSearch, setServiceSearch] = useState("");
   const [serviceResultsOpen, setServiceResultsOpen] = useState(false);
   const servicePickerRef = useRef(null);
+
   const [bookingDate, setBookingDate] = useState(todayDate());
   const [bookingTime, setBookingTime] = useState("");
   const [notes, setNotes] = useState("");
+
+  // بيانات الخصم والتحصيل
+  const [discountAmount, setDiscountAmount] = useState("0");
+  const [initialPayment, setInitialPayment] = useState("0");
+
   const [saving, setSaving] = useState(false);
   const [formMessage, setFormMessage] = useState("");
   const [formError, setFormError] = useState("");
@@ -124,12 +130,14 @@ function Dashboard() {
         servicesResult,
         expensesResult,
         bookingServicesResult,
+        paymentsResult,
       ] = await Promise.all([
         supabase.from("customers").select("*"),
         supabase.from("bookings").select("*"),
         supabase.from("services").select("*"),
         supabase.from("expenses").select("*"),
         supabase.from("booking_services").select("*"),
+        supabase.from("booking_payments").select("*"),
       ]);
 
       const error =
@@ -137,7 +145,8 @@ function Dashboard() {
         bookingsResult.error ||
         servicesResult.error ||
         expensesResult.error ||
-        bookingServicesResult.error;
+        bookingServicesResult.error ||
+        paymentsResult.error;
 
       if (error) throw error;
 
@@ -146,8 +155,8 @@ function Dashboard() {
       const allServices = servicesResult.data || [];
       const expenses = expensesResult.data || [];
       const bookingServices = bookingServicesResult.data || [];
+      const payments = paymentsResult.data || [];
 
-      // تجهيز خرائط للوصول السريع للبيانات
       const customersById = new Map(
         customers.map((customer) => [
           String(customer.id),
@@ -174,12 +183,26 @@ function Dashboard() {
         bookingServicesByBookingId.get(bookingId).push(item);
       });
 
-      // حساب حجوزات اليوم
+      const paymentsByBookingId = new Map();
+
+      payments.forEach((payment) => {
+        const bookingId = String(payment.booking_id);
+
+        if (!paymentsByBookingId.has(bookingId)) {
+          paymentsByBookingId.set(bookingId, 0);
+        }
+
+        paymentsByBookingId.set(
+          bookingId,
+          paymentsByBookingId.get(bookingId) +
+            Number(payment.amount || 0)
+        );
+      });
+
       const todayBookings = bookings.filter(
         (booking) => booking.booking_date === today
       );
 
-      // حساب مصروفات اليوم
       const todayExpenses = expenses
         .filter((expense) => expense.expense_date === today)
         .reduce(
@@ -187,27 +210,13 @@ function Dashboard() {
           0
         );
 
-      // حساب إيرادات اليوم
-      let todayRevenue = 0;
-
-      todayBookings.forEach((booking) => {
-        if (booking.status !== "completed") return;
-
-        const savedServices =
-          bookingServicesByBookingId.get(String(booking.id)) || [];
-
-        if (savedServices.length > 0) {
-          savedServices.forEach((item) => {
-            todayRevenue += Number(item.price || 0);
-          });
-        } else {
-          const service = servicesById.get(
-            String(booking.service_id)
-          );
-
-          todayRevenue += Number(service?.price || 0);
-        }
-      });
+      // الإيرادات تعتمد على تاريخ الدفع الفعلي
+      const todayRevenue = payments
+        .filter((payment) => payment.payment_date === today)
+        .reduce(
+          (sum, payment) => sum + Number(payment.amount || 0),
+          0
+        );
 
       setStats({
         customers: customers.length,
@@ -262,11 +271,19 @@ function Dashboard() {
             bookingTotal = Number(service?.price || 0);
           }
 
+          const discount = Number(booking.discount_amount || 0);
+          const netTotal = Math.max(0, bookingTotal - discount);
+          const paid = paymentsByBookingId.get(String(booking.id)) || 0;
+
           return {
             ...booking,
             customerName: customer?.full_name || "غير معروف",
             serviceName: serviceNames.join("، "),
             bookingTotal,
+            discount,
+            netTotal,
+            paid,
+            remaining: Math.max(0, netTotal - paid),
           };
         });
 
@@ -328,7 +345,6 @@ function Dashboard() {
       .eq("phone", phone)
       .limit(2);
 
-    // تجاهل نتيجة البحث لو الرقم اتغير أثناء البحث
     if (customerPhoneRef.current !== phone) {
       return;
     }
@@ -424,13 +440,39 @@ function Dashboard() {
     0
   );
 
+  const discountValue = Math.max(0, Number(discountAmount || 0));
+  const netInvoiceTotal = Math.max(0, invoiceTotal - discountValue);
+  const initialPaymentValue = Math.max(0, Number(initialPayment || 0));
+  const invoiceRemaining = Math.max(
+    0,
+    netInvoiceTotal - initialPaymentValue
+  );
+
   const filteredServices = services.filter((service) =>
     String(service.service_name || "")
       .toLowerCase()
       .includes(serviceSearch.trim().toLowerCase())
   );
 
-  // حفظ العميلة والحجز والخدمات
+  // تجهيز نموذج فاتورة جديدة
+  function resetInvoiceForm() {
+    setCustomerName("");
+    setCustomerPhone("");
+    customerPhoneRef.current = "";
+    setCustomerFound(null);
+    setCustomerMessage("");
+    setSelectedServices([]);
+    setServiceToAdd("");
+    setServiceSearch("");
+    setServiceResultsOpen(false);
+    setBookingDate(todayDate());
+    setBookingTime("");
+    setNotes("");
+    setDiscountAmount("0");
+    setInitialPayment("0");
+  }
+
+  // حفظ العميلة والحجز والخدمات والدفعة الأولى
   async function saveInvoice(event) {
     event.preventDefault();
 
@@ -439,6 +481,10 @@ function Dashboard() {
 
     const name = customerName.trim();
     const phone = normalizePhone(customerPhone);
+
+    const discount = Number(discountAmount || 0);
+    const paid = Number(initialPayment || 0);
+    const netTotal = invoiceTotal - discount;
 
     if (!phone) {
       setFormError("اكتبي رقم هاتف العميلة");
@@ -455,10 +501,29 @@ function Dashboard() {
       return;
     }
 
+    if (!Number.isFinite(discount) || discount < 0) {
+      setFormError("قيمة الخصم غير صحيحة");
+      return;
+    }
+
+    if (discount > invoiceTotal) {
+      setFormError("الخصم لا يمكن أن يكون أكبر من إجمالي الخدمات");
+      return;
+    }
+
+    if (!Number.isFinite(paid) || paid < 0) {
+      setFormError("المبلغ المدفوع غير صحيح");
+      return;
+    }
+
+    if (paid > netTotal) {
+      setFormError("المبلغ المدفوع لا يمكن أن يكون أكبر من صافي الفاتورة");
+      return;
+    }
+
     try {
       setSaving(true);
 
-      let bookingId = null;
       let customer = customerFound;
 
       const { data: existingCustomers, error: searchError } =
@@ -493,7 +558,7 @@ function Dashboard() {
         customer = newCustomer;
       }
 
-      // إنشاء الحجز
+      // إنشاء الحجز وحفظ الخصم
       const { data: newBooking, error: bookingError } =
         await supabase
           .from("bookings")
@@ -505,13 +570,12 @@ function Dashboard() {
               bookingTime || new Date().toTimeString().slice(0, 8),
             status: "pending",
             notes: notes.trim(),
+            discount_amount: discount,
           })
           .select()
           .single();
 
       if (bookingError) throw bookingError;
-
-      bookingId = newBooking.id;
 
       // حفظ جميع خدمات الفاتورة بالأسعار وقت الحجز
       const rows = selectedServices.map((service) => ({
@@ -526,27 +590,44 @@ function Dashboard() {
 
       if (servicesError) {
         // محاولة حذف الحجز إذا فشل حفظ الخدمات
-        await supabase.from("bookings").delete().eq("id", bookingId);
+        await supabase.from("bookings").delete().eq("id", newBooking.id);
         throw servicesError;
       }
 
+      // تسجيل الدفعة الأولى إذا تم دفع مبلغ
+      let paymentWarning = "";
+
+      if (paid > 0) {
+        const { error: paymentError } = await supabase
+          .from("booking_payments")
+          .insert({
+            booking_id: newBooking.id,
+            amount: paid,
+            payment_date: todayDate(),
+            notes: "الدفعة الأولى عند إنشاء الفاتورة",
+          });
+
+        if (paymentError) {
+          console.error("Initial Payment Error:", paymentError);
+
+          paymentWarning =
+            " — تنبيه: تم حفظ الفاتورة، لكن لم يتم تسجيل الدفعة الأولى. " +
+            "يرجى تسجيلها من سجل الدفعات لاحقًا. سبب الخطأ: " +
+            paymentError.message;
+        }
+      }
+
       setFormMessage(
-        `تم حفظ الفاتورة بنجاح — رقم الحجز: ${newBooking.id}`
+        `تم حفظ الفاتورة بنجاح — رقم الحجز: ${newBooking.id}. ` +
+          `صافي الفاتورة: ${money(netTotal)}. ` +
+          `المدفوع: ${money(paymentWarning ? 0 : paid)}. ` +
+          `المتبقي: ${money(
+            paymentWarning ? netTotal : netTotal - paid
+          )}` +
+          paymentWarning
       );
 
-      // تجهيز فاتورة جديدة
-      setCustomerName("");
-      setCustomerPhone("");
-      customerPhoneRef.current = "";
-      setCustomerFound(null);
-      setCustomerMessage("");
-      setSelectedServices([]);
-      setServiceToAdd("");
-      setServiceSearch("");
-      setServiceResultsOpen(false);
-      setBookingDate(todayDate());
-      setBookingTime("");
-      setNotes("");
+      resetInvoiceForm();
 
       await loadDashboard({ showLoading: false });
     } catch (error) {
@@ -571,7 +652,7 @@ function Dashboard() {
       icon: "📅",
     },
     {
-      title: "إيرادات اليوم",
+      title: "مقبوضات اليوم",
       value: money(stats.revenue),
       color: "#65a786",
       icon: "💰",
@@ -583,7 +664,7 @@ function Dashboard() {
       icon: "🧾",
     },
     {
-      title: "صافي ربح اليوم",
+      title: "صافي اليوم",
       value: money(stats.profit),
       color: "#d6ad69",
       icon: "✨",
@@ -1373,6 +1454,89 @@ function Dashboard() {
               </div>
             )}
 
+            {/* ملخص المبالغ */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "14px",
+                marginTop: "18px",
+              }}
+              className="invoice-grid"
+            >
+              <div
+                style={{
+                  background: "#f8edf3",
+                  padding: "15px",
+                  borderRadius: "10px",
+                }}
+              >
+                <div style={{ color: "#79445f", fontSize: "14px" }}>
+                  إجمالي الخدمات
+                </div>
+                <strong
+                  style={{
+                    display: "block",
+                    color: "#8d5d32",
+                    fontSize: "21px",
+                    marginTop: "7px",
+                  }}
+                >
+                  {money(invoiceTotal)}
+                </strong>
+              </div>
+
+              <div>
+                <label style={labelStyle}>الخصم (اختياري)</label>
+                <input
+                  style={inputStyle}
+                  type="number"
+                  min="0"
+                  max={invoiceTotal}
+                  step="0.01"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+
+              <div
+                style={{
+                  background: "#f8edf3",
+                  padding: "15px",
+                  borderRadius: "10px",
+                }}
+              >
+                <div style={{ color: "#79445f", fontSize: "14px" }}>
+                  صافي الفاتورة بعد الخصم
+                </div>
+                <strong
+                  style={{
+                    display: "block",
+                    color: "#397451",
+                    fontSize: "21px",
+                    marginTop: "7px",
+                  }}
+                >
+                  {money(netInvoiceTotal)}
+                </strong>
+              </div>
+
+              <div>
+                <label style={labelStyle}>المبلغ المدفوع الآن</label>
+                <input
+                  style={inputStyle}
+                  type="number"
+                  min="0"
+                  max={netInvoiceTotal}
+                  step="0.01"
+                  value={initialPayment}
+                  onChange={(e) => setInitialPayment(e.target.value)}
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
             <div
               style={{
                 display: "flex",
@@ -1381,19 +1545,32 @@ function Dashboard() {
                 gap: "12px",
                 flexWrap: "wrap",
                 marginTop: "18px",
-                padding: "15px",
+                padding: "16px",
                 borderRadius: "10px",
-                background: "#f8edf3",
+                background: "#f0f8f2",
+                border: "1px solid #cce4d2",
               }}
             >
-              <strong style={{ color: "#79445f", fontSize: "17px" }}>
-                إجمالي الفاتورة
+              <strong style={{ color: "#397451", fontSize: "17px" }}>
+                المبلغ المتبقي
               </strong>
 
-              <strong style={{ color: "#8d5d32", fontSize: "23px" }}>
-                {money(invoiceTotal)}
+              <strong style={{ color: "#397451", fontSize: "23px" }}>
+                {money(invoiceRemaining)}
               </strong>
             </div>
+
+            <p
+              style={{
+                color: "#927d89",
+                fontSize: "12px",
+                lineHeight: "1.8",
+                marginBottom: 0,
+              }}
+            >
+              سيتم تسجيل المبلغ المدفوع في سجل الدفعات بتاريخ اليوم، ويمكن
+              إضافة دفعات أخرى لاحقًا من شاشة متابعة الحسابات.
+            </p>
           </div>
 
           <div style={{ marginBottom: "20px" }}>
@@ -1433,6 +1610,8 @@ function Dashboard() {
                 padding: "13px",
                 borderRadius: "9px",
                 marginBottom: "15px",
+                lineHeight: "1.9",
+                overflowWrap: "anywhere",
               }}
             >
               {formMessage}
@@ -1571,7 +1750,7 @@ function Dashboard() {
                   className="dashboard-table"
                   style={{
                     width: "100%",
-                    minWidth: "750px",
+                    minWidth: "950px",
                     borderCollapse: "collapse",
                     textAlign: "right",
                   }}
@@ -1582,8 +1761,11 @@ function Dashboard() {
                         "العميلة",
                         "الخدمات",
                         "الإجمالي",
+                        "الخصم",
+                        "صافي الفاتورة",
+                        "المدفوع",
+                        "المتبقي",
                         "التاريخ",
-                        "الوقت",
                         "الحالة",
                       ].map((heading) => (
                         <th
@@ -1634,8 +1816,6 @@ function Dashboard() {
                             style={{
                               padding: "14px 12px",
                               borderBottom: "1px solid #f3e5eb",
-                              fontWeight: "bold",
-                              color: "#397451",
                               whiteSpace: "nowrap",
                             }}
                           >
@@ -1646,9 +1826,48 @@ function Dashboard() {
                             style={{
                               padding: "14px 12px",
                               borderBottom: "1px solid #f3e5eb",
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            {booking.booking_date}
+                            {money(booking.discount)}
+                          </td>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                              color: "#397451",
+                              fontWeight: "bold",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {money(booking.netTotal)}
+                          </td>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                              color: "#397451",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {money(booking.paid)}
+                          </td>
+
+                          <td
+                            style={{
+                              padding: "14px 12px",
+                              borderBottom: "1px solid #f3e5eb",
+                              color:
+                                booking.remaining > 0
+                                  ? "#ad3545"
+                                  : "#397451",
+                              fontWeight: "bold",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {money(booking.remaining)}
                           </td>
 
                           <td
@@ -1657,7 +1876,7 @@ function Dashboard() {
                               borderBottom: "1px solid #f3e5eb",
                             }}
                           >
-                            {booking.booking_time || "-"}
+                            {booking.booking_date}
                           </td>
 
                           <td
