@@ -6,17 +6,19 @@ import Link from "next/link";
 import { supabase } from "../lib/supabase";
 import AuthGuard from "./components/AuthGuard";
 
-const todayDate = () => {
-  const normalizePhone = (value) =>
-  String(value || "")
+// تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
+function normalizePhone(value) {
+  return String(value || "")
     .replace(/[٠-٩]/g, (digit) =>
-      String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))
+      String(digit.charCodeAt(0) - 0x0660)
     )
     .replace(/[۰-۹]/g, (digit) =>
-      String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit))
+      String(digit.charCodeAt(0) - 0x06f0)
     )
-    .replace(/\D/g, "")
-    .slice(0, 11);
+    .replace(/\D/g, "");
+}
+
+const todayDate = () => {
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -295,7 +297,6 @@ async function findCustomer(phoneValue = customerPhone) {
       "رقم جديد — اكتبي اسم العميلة وسيتم تسجيلها عند حفظ الفاتورة."
     );
   }
-}
 }
 
 // تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
@@ -1326,7 +1327,7 @@ try {
         MALAK BEAUTY SALON — نظام إدارة الصالون
       </footer>
     </main>
-  );
+   );
 }
 
 export default function Home() {
