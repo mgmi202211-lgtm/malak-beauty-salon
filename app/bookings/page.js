@@ -4,8 +4,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import AuthGuard, { useSalonRole } from "../components/AuthGuard";
 
-export default function BookingsPage() {
+function BookingsContent() {
+  const { role } = useSalonRole();
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -54,12 +56,12 @@ export default function BookingsPage() {
     );
 
     // منع تعديل الحجز بعد اعتماده أو اعتماد حجز ملغي مباشرة
-    if (currentBooking && getBookingStatus(currentBooking) === "completed") {
+    if (role !== "manager" && currentBooking && getBookingStatus(currentBooking) === "completed") {
       setMessage("لا يمكن تغيير حالة حجز مكتمل.");
       return;
     }
 
-    if (currentBooking && getBookingStatus(currentBooking) === "cancelled" && status === "completed") {
+    if (role !== "manager" && currentBooking && getBookingStatus(currentBooking) === "cancelled" && status === "completed") {
       setMessage("لا يمكن اعتماد حجز ملغي مباشرة. راجع حالته أولاً.");
       return;
     }
@@ -275,7 +277,7 @@ export default function BookingsPage() {
                       <td>
                         <select
                           value={getBookingStatus(booking)}
-                          disabled={isCompleted}
+                          disabled={role !== "manager" || isCompleted}
                           onChange={(e) =>
                             updateStatus(booking.id, e.target.value)
                           }
@@ -365,5 +367,13 @@ export default function BookingsPage() {
       {/* عرض الأقسام بالترتيب المحدد */}
       {bookingGroups.map((group) => renderBookingTable(group))}
     </main>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <AuthGuard>
+      <BookingsContent />
+    </AuthGuard>
   );
 }
