@@ -84,6 +84,7 @@ function Dashboard() {
 
   // بيانات الخصم والتحصيل
   const [discountAmount, setDiscountAmount] = useState("0");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
 
   const [saving, setSaving] = useState(false);
   const [formMessage, setFormMessage] = useState("");
@@ -466,9 +467,10 @@ function Dashboard() {
     setBookingTime("");
     setNotes("");
     setDiscountAmount("0");
+    setPaymentMethod("cash");
   }
 
-  // حفظ العميلة والحجز والخدمات دون تحصيل دفعة عند إنشاء الفاتورة
+  // حفظ الفاتورة وتسجيل تحصيل قيمتها بطريقة الدفع المختارة
   async function saveInvoice(event) {
     event.preventDefault();
 
@@ -579,9 +581,29 @@ function Dashboard() {
         throw servicesError;
       }
 
+      // تسجيل تحصيل صافي الفاتورة مرة واحدة عند حفظها
+      if (netTotal > 0) {
+        const { error: paymentError } = await supabase
+          .from("booking_payments")
+          .insert({
+            booking_id: newBooking.id,
+            amount: netTotal,
+            payment_method: paymentMethod,
+            payment_date: todayDate(),
+            notes: "تحصيل الفاتورة عند إنشائها",
+          });
+
+        if (paymentError) {
+          await supabase.from("booking_services").delete().eq("booking_id", newBooking.id);
+          await supabase.from("bookings").delete().eq("id", newBooking.id);
+          throw paymentError;
+        }
+      }
+
       setFormMessage(
         `تم حفظ الفاتورة بنجاح — رقم الحجز: ${newBooking.id}. ` +
           `صافي الفاتورة: ${money(netTotal)}. ` +
+          `طريقة الدفع: ${paymentMethod === "cash" ? "كاش" : paymentMethod === "instapay" ? "إنستا باي" : "فودافون كاش"}. ` +
           "سيتم اعتماد الإيراد عند اكتمال الخدمة."
       );
 
@@ -1475,6 +1497,21 @@ function Dashboard() {
                 </strong>
               </div>
 
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={labelStyle}>طريقة الدفع</label>
+                <select
+                  style={inputStyle}
+                  value={paymentMethod}
+                  onChange={(event) => setPaymentMethod(event.target.value)}
+                >
+                  <option value="cash">نقدًا (كاش)</option>
+                  <option value="instapay">إنستا باي</option>
+                  <option value="vodafone_cash">فودافون كاش</option>
+                </select>
+                <small style={{ display: "block", color: "#927d89", marginTop: "7px" }}>
+                  سيتم تسجيل صافي الفاتورة كدفعة واحدة بالطريقة المختارة.
+                </small>
+              </div>
             </div>
 
           </div>
