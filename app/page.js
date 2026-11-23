@@ -1860,7 +1860,7 @@ function Dashboard() {
             </h2>
 
             <div className="dashboard-links-grid">
-              {links.filter((item) => role === "manager" || !["/services", "/accounting"].includes(item.href)).map((item) => (
+              {links.filter((item) => role === "manager" || !["/customers", "/services", "/accounting"].includes(item.href)).map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
