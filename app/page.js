@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
 import AuthGuard from "./components/AuthGuard";
+import BackupButton from "./components/BackupButton";
 
 // تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
 function normalizePhone(value) {
@@ -1904,6 +1905,8 @@ function Dashboard() {
           </section>
         </>
       )}
+
+      <BackupButton />
 
       <footer
         style={{
