@@ -277,7 +277,7 @@ function BookingsContent() {
                       <td>
                         <select
                           value={getBookingStatus(booking)}
-                          disabled={role !== "manager" || isCompleted}
+                          disabled={role !== "manager"}
                           onChange={(e) =>
                             updateStatus(booking.id, e.target.value)
                           }
