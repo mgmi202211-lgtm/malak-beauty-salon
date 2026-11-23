@@ -1542,7 +1542,7 @@ function Dashboard() {
           >
             {saving
               ? "جاري حفظ الفاتورة..."
-              : "✓ حفظ الفاتورة وإرسال الطلب"}
+              : "حفظ"}
           </button>
         </form>
       </section>
