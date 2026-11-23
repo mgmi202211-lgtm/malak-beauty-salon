@@ -4,8 +4,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import AuthGuard from "../components/AuthGuard";
 
-export default function ServicesPage() {
+function ServicesContent() {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -322,5 +323,13 @@ export default function ServicesPage() {
         </p>
       )}
     </main>
+  );
+}
+
+export default function ServicesPage() {
+  return (
+    <AuthGuard allowedRoles="manager">
+      <ServicesContent />
+    </AuthGuard>
   );
 }
