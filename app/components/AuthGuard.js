@@ -51,7 +51,7 @@ export default function AuthGuard({ children, allowedRoles }) {
 
       setProfile(data);
       setRole(data.role);
-      setAuthorized(!allowedRoles || allowedRoles.includes(data.role));
+      setAuthorized(!allowedRoles || (Array.isArray(allowedRoles) ? allowedRoles.includes(data.role) : allowedRoles === data.role));
       setChecking(false);
     }
 
