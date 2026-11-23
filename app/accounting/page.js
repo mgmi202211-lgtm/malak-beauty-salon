@@ -420,6 +420,10 @@ export default function AccountingPage() {
         .accounting-table tr:hover { background: #fff7fa; }
         .accounting-button:hover { opacity: .88; }
         .payment-method-table th, .payment-method-table td { white-space: nowrap; }
+        .booking-register-table th, .booking-register-table td { white-space: nowrap; vertical-align: middle; }
+        .booking-register-table tbody tr:hover { background: #fff1f6 !important; }
+        .booking-register-table input:focus { outline: 2px solid #d9a2bb; border-color: #922c5c; }
+        .booking-register button:disabled { cursor: not-allowed; }
         @media (max-width: 640px) {
           .payment-report { padding: 15px !important; }
           .payment-report h3 { font-size: 20px !important; }
@@ -757,31 +761,41 @@ export default function AccountingPage() {
       </section>
 
       {/* سجل الحجوزات */}
-      <section style={cardStyle}>
-        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
-          سجل الحجوزات والفواتير
-        </h2>
+      <section className="booking-register" style={{ ...cardStyle, padding: "26px", border: "1px solid #ead5df", borderRadius: "20px", marginBottom: "28px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "8px" }}>
+          <div>
+            <h2 style={{ color: "#84264f", margin: 0, fontSize: "25px", fontWeight: 800, lineHeight: 1.6 }}>
+              سجل الحجوزات والفواتير
+            </h2>
+            <p style={{ color: "#765968", fontSize: "14px", margin: "4px 0 0", lineHeight: 1.8 }}>
+              مراجعة تفاصيل الخدمات والفواتير والخصومات لكل حجز
+            </p>
+          </div>
+          <span style={{ background: "#f5e4ec", color: "#84264f", borderRadius: "999px", padding: "8px 15px", fontSize: "14px", fontWeight: 700 }}>
+            إجمالي الحجوزات: {bookings.length.toLocaleString("ar-EG")}
+          </span>
+        </div>
 
         {loading ? (
-          <p>جاري تحميل الحجوزات...</p>
+          <div style={{ padding: "28px", textAlign: "center", color: "#765968", fontSize: "16px" }}>جاري تحميل الحجوزات...</div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="accounting-table" style={tableStyle}>
-              <thead style={{ background: "#f8e8ef" }}>
-                <tr>
-                  <th style={cellStyle}>رقم الحجز</th>
-                  <th style={cellStyle}>الخدمات وأسعارها</th>
-                  <th style={cellStyle}>التاريخ</th>
-                  <th style={cellStyle}>الإجمالي</th>
-                  <th style={cellStyle}>الخصم</th>
-                  <th style={cellStyle}>صافي الفاتورة</th>
-                  <th style={cellStyle}>الإيراد المعتمد</th>
-                  <th className="no-print" style={cellStyle}>حفظ الخصم</th>
+          <div style={{ overflowX: "auto", marginTop: "20px", border: "1px solid #ead5df", borderRadius: "14px", background: "#fff" }}>
+            <table className="accounting-table booking-register-table" style={{ ...tableStyle, minWidth: "1050px" }}>
+              <thead>
+                <tr style={{ background: "#84264f" }}>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>رقم الحجز</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>الخدمات وأسعارها</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>التاريخ</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>الإجمالي</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>الخصم</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>صافي الفاتورة</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>الإيراد المعتمد</th>
+                  <th className="no-print" style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>حفظ الخصم</th>
                 </tr>
               </thead>
 
               <tbody>
-                {bookings.map((booking) => {
+                {bookings.map((booking, rowIndex) => {
                   const items = getBookingServiceItems(booking);
                   const total = getBookingTotal(booking);
                   const discount = getBookingDiscount(booking);
@@ -791,59 +805,35 @@ export default function AccountingPage() {
                   );
 
                   return (
-                    <tr key={booking.id}>
-                      <td style={cellStyle}>
+                    <tr key={booking.id} style={{ background: rowIndex % 2 === 0 ? "#fff" : "#fff9fc" }}>
+                      <td style={{ ...cellStyle, fontSize: "15px", fontWeight: 800, color: "#84264f", padding: "16px 12px" }}>
                         {booking.id}
-                        <div style={{ color: "#88727e", fontSize: "11px" }}>
-                          {booking.status === "completed"
-                            ? "مكتمل"
-                            : booking.status === "cancelled"
-                              ? "ملغي"
-                              : "غير مكتمل"}
+                        <div style={{ display: "inline-block", marginTop: "7px", padding: "4px 9px", borderRadius: "999px", background: booking.status === "completed" ? "#e8f4ec" : booking.status === "cancelled" ? "#fcebed" : "#fff4df", color: booking.status === "completed" ? "#286443" : booking.status === "cancelled" ? "#a33b49" : "#94651b", fontSize: "12px", fontWeight: 700 }}>
+                          {booking.status === "completed" ? "مكتمل" : booking.status === "cancelled" ? "ملغي" : "غير مكتمل"}
                         </div>
                       </td>
 
-                      <td style={cellStyle}>
+                      <td style={{ ...cellStyle, fontSize: "14px", color: "#513344", lineHeight: 1.8, minWidth: "210px" }}>
                         {items.length > 0 ? (
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "7px",
-                              alignItems: "center",
-                            }}
-                          >
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
                             {items.map((item, index) => (
-                              <div
-                                key={`${item.service_id}-${index}`}
-                                style={{
-                                  borderBottom:
-                                    index < items.length - 1
-                                      ? "1px solid #f3e5eb"
-                                      : "none",
-                                  paddingBottom: "5px",
-                                }}
-                              >
-                                <div>{item.service_name}</div>
-                                <small style={{ color: "#88727e" }}>
-                                  {formatMoney(item.price)}
-                                </small>
+                              <div key={`${item.service_id}-${index}`} style={{ borderBottom: index < items.length - 1 ? "1px solid #f0dfe7" : "none", paddingBottom: "6px", width: "100%" }}>
+                                <div style={{ fontWeight: 700 }}>{item.service_name}</div>
+                                <small style={{ color: "#765968", fontSize: "13px" }}>{formatMoney(item.price)}</small>
                               </div>
                             ))}
                           </div>
-                        ) : (
-                          "لا توجد تفاصيل خدمات"
-                        )}
+                        ) : "لا توجد تفاصيل خدمات"}
                       </td>
 
-                      <td style={cellStyle}>
+                      <td style={{ ...cellStyle, fontSize: "14px", lineHeight: 1.8, color: "#513344" }}>
                         {booking.booking_date}
-                        <div>{booking.booking_time || "-"}</div>
+                        <div style={{ color: "#765968" }}>{booking.booking_time || "-"}</div>
                       </td>
 
-                      <td style={cellStyle}>{formatMoney(total)}</td>
+                      <td style={{ ...cellStyle, fontSize: "14px", fontWeight: 700, color: "#513344" }}>{formatMoney(total)}</td>
 
-                      <td style={cellStyle}>
+                      <td style={{ ...cellStyle, minWidth: "135px" }}>
                         <input
                           className="no-print"
                           type="number"
@@ -857,29 +847,14 @@ export default function AccountingPage() {
                               [booking.id]: event.target.value,
                             }))
                           }
-                          style={{
-                            ...inputStyle,
-                            width: "105px",
-                            textAlign: "center",
-                          }}
+                          style={{ ...inputStyle, width: "115px", textAlign: "center", fontSize: "15px", fontWeight: 700, padding: "12px 9px" }}
                         />
-                        <span className="no-print" style={{ display: "none" }}>
-                          {formatMoney(discount)}
-                        </span>
-                        <span style={{ display: "none" }} className="print-only">
-                          {formatMoney(discount)}
-                        </span>
+                        <span className="print-only" style={{ display: "none", fontSize: "14px" }}>{formatMoney(discount)}</span>
                       </td>
 
-                      <td style={cellStyle}>{formatMoney(net)}</td>
+                      <td style={{ ...cellStyle, fontSize: "15px", fontWeight: 800, color: "#84264f" }}>{formatMoney(net)}</td>
 
-                      <td
-                        style={{
-                          ...cellStyle,
-                          color: "#397451",
-                          fontWeight: "bold",
-                        }}
-                      >
+                      <td style={{ ...cellStyle, fontSize: "14px", color: "#286443", fontWeight: 800 }}>
                         {recognizedRevenue ? formatMoney(recognizedRevenue.amount) : "—"}
                       </td>
 
@@ -888,13 +863,7 @@ export default function AccountingPage() {
                           type="button"
                           disabled={savingDiscount}
                           onClick={() => saveDiscount(booking)}
-                          style={{
-                            ...buttonStyle,
-                            background: "#922c5c",
-                            color: "white",
-                            padding: "8px 12px",
-                            opacity: savingDiscount ? 0.6 : 1,
-                          }}
+                          style={{ ...buttonStyle, background: "#84264f", color: "white", padding: "11px 17px", fontSize: "14px", minWidth: "76px", opacity: savingDiscount ? 0.6 : 1 }}
                         >
                           حفظ
                         </button>
@@ -905,7 +874,7 @@ export default function AccountingPage() {
 
                 {bookings.length === 0 && (
                   <tr>
-                    <td colSpan="8" style={cellStyle}>
+                    <td colSpan="8" style={{ ...cellStyle, padding: "28px", color: "#765968", fontSize: "15px" }}>
                       لا توجد حجوزات حتى الآن
                     </td>
                   </tr>
@@ -915,17 +884,8 @@ export default function AccountingPage() {
           </div>
         )}
 
-        <p
-          style={{
-            color: "#88727e",
-            marginTop: "20px",
-            fontSize: "13px",
-            lineHeight: 1.8,
-          }}
-        >
-          يتم اعتماد الإيراد مرة واحدة عند اكتمال الخدمة، ويُسجل بتاريخ
-          الاعتماد. أما الدفعات المسجلة قبل تطبيق النظام الجديد فتظل محفوظة
-          في السجل التاريخي ولا تُضاف مرة أخرى إلى إجمالي الإيرادات.
+        <p style={{ color: "#806b77", margin: "16px 2px 0", fontSize: "13px", lineHeight: 2 }}>
+          يتم اعتماد الإيراد مرة واحدة عند اكتمال الخدمة، ويُسجل بتاريخ الاعتماد. أما الدفعات المسجلة قبل تطبيق النظام الجديد فتظل محفوظة في السجل التاريخي ولا تُضاف مرة أخرى إلى إجمالي الإيرادات.
         </p>
       </section>
 
