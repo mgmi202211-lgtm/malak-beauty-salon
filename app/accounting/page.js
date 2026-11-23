@@ -419,6 +419,13 @@ export default function AccountingPage() {
         * { box-sizing: border-box; }
         .accounting-table tr:hover { background: #fff7fa; }
         .accounting-button:hover { opacity: .88; }
+        .payment-method-table th, .payment-method-table td { white-space: nowrap; }
+        @media (max-width: 640px) {
+          .payment-report { padding: 15px !important; }
+          .payment-report h3 { font-size: 20px !important; }
+          .payment-report .payment-method-table th,
+          .payment-report .payment-method-table td { padding: 12px 8px !important; }
+        }
         @media print {
           .no-print { display: none !important; }
           main { max-width: 100% !important; padding: 5px !important; }
@@ -676,50 +683,66 @@ export default function AccountingPage() {
           عدد الخدمات المكتملة خلال الفترة: {reportRevenues.length}
         </p>
 
-        <div style={{ marginTop: "26px" }}>
-          <h3 style={{ color: "#922c5c", marginBottom: "8px" }}>
-            تقرير المقبوضات حسب طريقة الدفع
-          </h3>
-          <p style={{ color: "#806b77", fontSize: "13px", marginTop: 0 }}>
-            يعرض المبالغ المسجلة فعليًا في الدفعات خلال الفترة المحددة، وليس الإيرادات المعتمدة عند اكتمال الخدمة.
-          </p>
+        <div className="payment-report" style={{ marginTop: "30px", padding: "24px", borderRadius: "20px", background: "linear-gradient(145deg, #fff8fb 0%, #fff 70%)", border: "1px solid #f0d9e4" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "8px" }}>
+            <div>
+              <h3 style={{ color: "#84264f", margin: 0, fontSize: "23px", fontWeight: 800, lineHeight: 1.6 }}>
+                تقرير المقبوضات حسب طريقة الدفع
+              </h3>
+              <p style={{ color: "#765968", fontSize: "15px", lineHeight: 1.9, margin: "4px 0 0" }}>
+                ملخص واضح لكل المبالغ التي تم تحصيلها خلال الفترة المختارة
+              </p>
+            </div>
+            <span style={{ background: "#f5e4ec", color: "#84264f", borderRadius: "999px", padding: "8px 15px", fontSize: "14px", fontWeight: 700 }}>
+              {reportPeriod === "daily" ? "تقرير يومي" : "تقرير شهري"}
+            </span>
+          </div>
 
-          <div style={{ overflowX: "auto" }}>
-            <table className="accounting-table" style={tableStyle}>
-              <thead style={{ background: "#f8e8ef" }}>
-                <tr>
-                  <th style={cellStyle}>طريقة الدفع</th>
-                  <th style={cellStyle}>عدد عمليات الدفع</th>
-                  <th style={cellStyle}>إجمالي المقبوضات</th>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "14px", margin: "22px 0" }}>
+            <div style={{ background: "#fff", border: "1px solid #ead5df", borderRight: "5px solid #922c5c", borderRadius: "15px", padding: "17px" }}>
+              <div style={{ color: "#765968", fontSize: "14px", fontWeight: 700 }}>إجمالي المقبوضات</div>
+              <div style={{ color: "#84264f", fontSize: "24px", fontWeight: 800, marginTop: "8px", lineHeight: 1.5 }}>{formatMoney(reportTotalPayments)}</div>
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #dcebe2", borderRight: "5px solid #397451", borderRadius: "15px", padding: "17px" }}>
+              <div style={{ color: "#527260", fontSize: "14px", fontWeight: 700 }}>عدد عمليات التحصيل</div>
+              <div style={{ color: "#286443", fontSize: "27px", fontWeight: 800, marginTop: "8px" }}>{reportPayments.length.toLocaleString("ar-EG")}</div>
+            </div>
+          </div>
+
+          <div style={{ overflowX: "auto", borderRadius: "14px", border: "1px solid #ead5df", background: "white" }}>
+            <table className="accounting-table payment-method-table" style={{ ...tableStyle, minWidth: "520px" }}>
+              <thead>
+                <tr style={{ background: "#84264f", color: "#fff" }}>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>طريقة الدفع</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>عدد العمليات</th>
+                  <th style={{ ...cellStyle, color: "#fff", fontSize: "15px", fontWeight: 800, padding: "16px 12px" }}>إجمالي المقبوضات</th>
                 </tr>
               </thead>
               <tbody>
-                {paymentMethodReport.map((item) => (
-                  <tr key={item.value}>
-                    <td style={cellStyle}>{item.label}</td>
-                    <td style={cellStyle}>{item.count}</td>
-                    <td style={{ ...cellStyle, fontWeight: "bold", color: "#397451" }}>
-                      {formatMoney(item.total)}
+                {paymentMethodReport.map((item, index) => (
+                  <tr key={item.value} style={{ background: index % 2 === 0 ? "#fff" : "#fff9fc" }}>
+                    <td style={{ ...cellStyle, fontSize: "16px", fontWeight: 700, color: "#513344", padding: "17px 12px" }}>
+                      <span style={{ display: "inline-block", background: "#f7e9ef", color: "#84264f", borderRadius: "9px", padding: "7px 14px", minWidth: "105px" }}>{item.label}</span>
                     </td>
+                    <td style={{ ...cellStyle, fontSize: "16px", fontWeight: 700, color: "#513344" }}>{item.count.toLocaleString("ar-EG")}</td>
+                    <td style={{ ...cellStyle, fontSize: "17px", fontWeight: 800, color: "#286443" }}>{formatMoney(item.total)}</td>
                   </tr>
                 ))}
                 {unclassifiedPayments.length > 0 && (
-                  <tr>
-                    <td style={cellStyle}>طريقة دفع غير محددة / قديمة</td>
-                    <td style={cellStyle}>{unclassifiedPayments.length}</td>
-                    <td style={cellStyle}>{formatMoney(unclassifiedPaymentTotal)}</td>
+                  <tr style={{ background: "#fffaf0" }}>
+                    <td style={{ ...cellStyle, fontSize: "15px", fontWeight: 700 }}>دفعات قديمة / غير محددة</td>
+                    <td style={{ ...cellStyle, fontSize: "16px" }}>{unclassifiedPayments.length.toLocaleString("ar-EG")}</td>
+                    <td style={{ ...cellStyle, fontSize: "16px", fontWeight: 800 }}>{formatMoney(unclassifiedPaymentTotal)}</td>
                   </tr>
                 )}
-                <tr style={{ background: "#fff7fa", fontWeight: "bold" }}>
-                  <td style={cellStyle}>إجمالي المقبوضات</td>
-                  <td style={cellStyle}>{reportPayments.length}</td>
-                  <td style={{ ...cellStyle, color: "#397451" }}>
-                    {formatMoney(reportTotalPayments)}
-                  </td>
+                <tr style={{ background: "#f5e8ee" }}>
+                  <td style={{ ...cellStyle, fontSize: "16px", fontWeight: 800, color: "#84264f", padding: "17px 12px" }}>الإجمالي النهائي</td>
+                  <td style={{ ...cellStyle, fontSize: "17px", fontWeight: 800, color: "#84264f" }}>{reportPayments.length.toLocaleString("ar-EG")}</td>
+                  <td style={{ ...cellStyle, fontSize: "19px", fontWeight: 900, color: "#286443" }}>{formatMoney(reportTotalPayments)}</td>
                 </tr>
                 {reportPayments.length === 0 && (
                   <tr>
-                    <td colSpan="3" style={cellStyle}>
+                    <td colSpan="3" style={{ ...cellStyle, padding: "25px", color: "#806b77", fontSize: "15px" }}>
                       لا توجد دفعات مسجلة خلال الفترة المحددة
                     </td>
                   </tr>
@@ -727,6 +750,9 @@ export default function AccountingPage() {
               </tbody>
             </table>
           </div>
+          <p style={{ color: "#806b77", fontSize: "13px", lineHeight: 1.9, margin: "14px 2px 0" }}>
+            * التقرير مبني على تاريخ التحصيل الفعلي، وقد يختلف عن الإيرادات التي يتم اعتمادها عند اكتمال الخدمة.
+          </p>
         </div>
       </section>
 
