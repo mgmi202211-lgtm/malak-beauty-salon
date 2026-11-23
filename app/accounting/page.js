@@ -270,6 +270,18 @@ export default function AccountingPage() {
     0
   );
 
+  // إجمالي خصومات الحجوزات التي تم تسجيلها خلال الفترة المختارة
+  const reportBookings = bookings.filter(
+    (booking) =>
+      booking.booking_date >= reportStart &&
+      booking.booking_date <= reportEnd
+  );
+
+  const reportTotalDiscounts = reportBookings.reduce(
+    (sum, booking) => sum + Math.max(0, Number(booking.discount_amount || 0)),
+    0
+  );
+
   const reportNetProfit =
     reportTotalRevenue - reportTotalExpenses;
 
@@ -655,27 +667,37 @@ export default function AccountingPage() {
             marginTop: "22px",
           }}
         >
-          <div style={{ ...cardStyle, background: "#fffaf0" }}>
-            <div style={{ color: "#98702d" }}>المقبوضات خلال الفترة</div>
-            <h2 style={{ color: "#98702d" }}>
+          <div style={{ ...cardStyle, background: "#fffaf0", borderTop: "4px solid #bd8b35" }}>
+            <div style={{ color: "#98702d", fontWeight: 700 }}>الإيرادات المعتمدة</div>
+            <h2 style={{ color: "#98702d", margin: "10px 0 0", fontSize: "23px" }}>
               {formatMoney(reportTotalRevenue)}
             </h2>
           </div>
 
-          <div style={{ ...cardStyle, background: "#fff5f8" }}>
-            <div style={{ color: "#a34770" }}>مصروفات الفترة</div>
-            <h2 style={{ color: "#a34770" }}>
+          <div style={{ ...cardStyle, background: "#fff5f8", borderTop: "4px solid #c46b91" }}>
+            <div style={{ color: "#a34770", fontWeight: 700 }}>إجمالي الخصومات</div>
+            <h2 style={{ color: "#a34770", margin: "10px 0 0", fontSize: "23px" }}>
+              {formatMoney(reportTotalDiscounts)}
+            </h2>
+            <div style={{ color: "#806b77", fontSize: "12px", marginTop: "6px" }}>
+              على {reportBookings.length.toLocaleString("ar-EG")} حجز خلال الفترة
+            </div>
+          </div>
+
+          <div style={{ ...cardStyle, background: "#fff5f8", borderTop: "4px solid #c46b91" }}>
+            <div style={{ color: "#a34770", fontWeight: 700 }}>مصروفات الفترة</div>
+            <h2 style={{ color: "#a34770", margin: "10px 0 0", fontSize: "23px" }}>
               {formatMoney(reportTotalExpenses)}
             </h2>
           </div>
 
-          <div style={{ ...cardStyle, background: "#f3faf5" }}>
-            <div style={{ color: "#397451" }}>
-              صافي الإيرادات بعد المصروفات
-            </div>
+          <div style={{ ...cardStyle, background: "#f3faf5", borderTop: "4px solid #548b70" }}>
+            <div style={{ color: "#397451", fontWeight: 700 }}>صافي الإيرادات بعد المصروفات</div>
             <h2
               style={{
                 color: reportNetProfit >= 0 ? "#397451" : "#b42318",
+                margin: "10px 0 0",
+                fontSize: "23px",
               }}
             >
               {formatMoney(reportNetProfit)}
@@ -683,8 +705,8 @@ export default function AccountingPage() {
           </div>
         </div>
 
-        <p style={{ marginBottom: 0, color: "#806b77" }}>
-          عدد الخدمات المكتملة خلال الفترة: {reportRevenues.length}
+        <p style={{ marginBottom: 0, color: "#806b77", lineHeight: 1.9 }}>
+          عدد الخدمات المكتملة: {reportRevenues.length.toLocaleString("ar-EG")} — عدد الحجوزات: {reportBookings.length.toLocaleString("ar-EG")}
         </p>
 
         <div className="payment-report" style={{ marginTop: "30px", padding: "24px", borderRadius: "20px", background: "linear-gradient(145deg, #fff8fb 0%, #fff 70%)", border: "1px solid #f0d9e4" }}>
