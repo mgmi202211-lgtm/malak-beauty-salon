@@ -668,11 +668,6 @@ function Dashboard() {
       color: "#d6ad69",
       background: "#fff5df",
     },
-    confirmed: {
-      label: "مؤكد",
-      color: "#6c9dbb",
-      background: "#e8f4ff",
-    },
     completed: {
       label: "مكتمل",
       color: "#397451",
@@ -1695,8 +1690,9 @@ function Dashboard() {
 
                   <tbody>
                     {recentBookings.map((booking) => {
-                      const status = statusInfo[booking.status] || {
-                        label: booking.status,
+                      const displayStatus = booking.status === "confirmed" ? "pending" : booking.status;
+                      const status = statusInfo[displayStatus] || {
+                        label: displayStatus,
                         color: "#555",
                         background: "#eee",
                       };
