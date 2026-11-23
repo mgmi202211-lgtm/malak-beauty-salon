@@ -41,6 +41,12 @@ export default function AccountingPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingDiscount, setSavingDiscount] = useState(false);
+  const [paymentBookingId, setPaymentBookingId] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentDate, setPaymentDate] = useState(getToday());
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [savingPayment, setSavingPayment] = useState(false);
 
   const [reportPeriod, setReportPeriod] = useState("daily");
   const [reportDate, setReportDate] = useState(getToday());
@@ -320,6 +326,60 @@ export default function AccountingPage() {
     }
 
     setMessage("تم حفظ الخصم بنجاح");
+    await loadExpenses();
+  }
+
+  async function savePayment() {
+    setMessage("");
+
+    const booking = bookings.find(
+      (item) => String(item.id) === String(paymentBookingId)
+    );
+    const amount = Number(paymentAmount);
+
+    if (!booking || booking.status === "cancelled") {
+      setMessage("اختاري حجزًا صالحًا لتسجيل الدفعة.");
+      return;
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setMessage("أدخلي مبلغًا صحيحًا أكبر من صفر.");
+      return;
+    }
+
+    if (!paymentDate) {
+      setMessage("اختاري تاريخ التحصيل.");
+      return;
+    }
+
+    const remaining = Math.max(
+      0,
+      getBookingNet(booking) - getBookingPaid(booking.id)
+    );
+
+    if (amount > remaining) {
+      setMessage(`المبلغ أكبر من المتبقي على الحجز (${formatMoney(remaining)}).`);
+      return;
+    }
+
+    setSavingPayment(true);
+    const { error } = await supabase.from("booking_payments").insert({
+      booking_id: booking.id,
+      amount,
+      payment_method: paymentMethod,
+      payment_date: paymentDate,
+      notes: paymentNotes.trim() || null,
+    });
+    setSavingPayment(false);
+
+    if (error) {
+      setMessage("تعذر تسجيل الدفعة: " + error.message);
+      return;
+    }
+
+    setPaymentAmount("");
+    setPaymentNotes("");
+    setMessage("تم تسجيل الدفعة بنجاح، ولم يتم اعتماد الإيراد بسبب تسجيل التحصيل فقط.");
     await loadExpenses();
   }
 
@@ -702,6 +762,105 @@ export default function AccountingPage() {
             </table>
           </div>
         )}
+      </section>
+
+      {/* تسجيل دفعة جديدة */}
+      <section className="no-print" style={{ ...cardStyle, marginBottom: "28px" }}>
+        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
+          تسجيل دفعة جديدة
+        </h2>
+        <p style={{ color: "#806b77", fontSize: "13px", lineHeight: 1.7 }}>
+          سجلي المبلغ الذي تم تحصيله بالفعل واختاري وسيلة الدفع. تسجيل الدفعة لا يعتمد إيراد الحجز؛ اعتماد الإيراد يظل عند اكتمال الخدمة.
+        </p>
+
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: "14px",
+          alignItems: "end",
+        }}>
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>الحجز</label>
+            <select
+              value={paymentBookingId}
+              onChange={(event) => setPaymentBookingId(event.target.value)}
+              style={inputStyle}
+            >
+              <option value="">اختاري رقم الحجز</option>
+              {bookings.filter((booking) => {
+                if (booking.status === "cancelled") return false;
+                return getBookingNet(booking) - getBookingPaid(booking.id) > 0;
+              }).map((booking) => (
+                <option key={booking.id} value={String(booking.id)}>
+                  حجز #{booking.id} — {booking.booking_date} — متبقي {formatMoney(
+                    Math.max(0, getBookingNet(booking) - getBookingPaid(booking.id))
+                  )}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>المبلغ المحصّل</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={paymentAmount}
+              onChange={(event) => setPaymentAmount(event.target.value)}
+              placeholder="اكتبي المبلغ"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>طريقة الدفع</label>
+            <select
+              value={paymentMethod}
+              onChange={(event) => setPaymentMethod(event.target.value)}
+              style={inputStyle}
+            >
+              <option value="cash">نقدًا (كاش)</option>
+              <option value="instapay">إنستا باي</option>
+              <option value="vodafone_cash">فودافون كاش</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>تاريخ التحصيل</label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(event) => setPaymentDate(event.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "8px" }}>ملاحظات (اختياري)</label>
+            <input
+              type="text"
+              value={paymentNotes}
+              onChange={(event) => setPaymentNotes(event.target.value)}
+              placeholder="ملاحظات عن الدفعة"
+              style={inputStyle}
+            />
+          </div>
+
+          <button
+            type="button"
+            disabled={savingPayment}
+            onClick={savePayment}
+            style={{
+              ...buttonStyle,
+              background: "#922c5c",
+              color: "white",
+              opacity: savingPayment ? 0.6 : 1,
+            }}
+          >
+            {savingPayment ? "جاري الحفظ..." : "تسجيل الدفعة"}
+          </button>
+        </div>
       </section>
 
       {/* سجل الإيرادات المعتمدة */}
