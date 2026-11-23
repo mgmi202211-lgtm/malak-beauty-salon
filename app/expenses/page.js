@@ -17,6 +17,7 @@ function ExpensesContent() {
   const [loading, setLoading] = useState(false);
   const [expenses, setExpenses] = useState([]);
   const [loadingExpenses, setLoadingExpenses] = useState(true);
+  const [editingId, setEditingId] = useState(null);
 
   async function loadExpenses() {
     setLoadingExpenses(true);
@@ -37,6 +38,24 @@ function ExpensesContent() {
     loadExpenses();
   }, []);
 
+  function startEditingExpense(item) {
+    setEditingId(item.id);
+    setExpenseName(item.expense_name || "");
+    setAmount(String(item.amount || ""));
+    setExpenseDate(item.expense_date || today);
+    setNotes(item.notes || "");
+    setMessage("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEditingExpense() {
+    setEditingId(null);
+    setExpenseName("");
+    setAmount("");
+    setExpenseDate(today);
+    setNotes("");
+  }
+
   async function deleteExpense(id) {
     if (!window.confirm("هل تريد حذف هذا المصروف؟")) return;
     const { error } = await supabase.from("expenses").delete().eq("id", id);
@@ -53,25 +72,30 @@ function ExpensesContent() {
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.from("expenses").insert({
-      expense_name: expenseName,
+    const expenseData = {
+      expense_name: expenseName.trim(),
       amount: Number(amount),
       expense_date: expenseDate,
       notes: notes,
-    });
+    };
+
+    const { error } = editingId
+      ? await supabase.from("expenses").update(expenseData).eq("id", editingId)
+      : await supabase.from("expenses").insert(expenseData);
 
     setLoading(false);
 
     if (error) {
-      setMessage("تعذر إضافة المصروف: " + error.message);
+      setMessage((editingId ? "تعذر تعديل المصروف: " : "تعذر إضافة المصروف: ") + error.message);
       return;
     }
 
+    setEditingId(null);
     setExpenseName("");
     setAmount("");
     setExpenseDate(today);
     setNotes("");
-    setMessage("تم إضافة المصروف بنجاح");
+    setMessage(editingId ? "تم تعديل المصروف بنجاح" : "تم إضافة المصروف بنجاح");
     await loadExpenses();
   }
 
@@ -85,7 +109,7 @@ function ExpensesContent() {
         fontFamily: "Arial",
       }}
     >
-      <h1>إضافة مصروف جديد</h1>
+      <h1>{editingId ? "تعديل المصروف" : "إضافة مصروف جديد"}</h1>
 
       <form onSubmit={addExpense}>
         <p>اسم المصروف</p>
@@ -157,8 +181,13 @@ function ExpensesContent() {
             cursor: "pointer",
           }}
         >
-          {loading ? "جاري الحفظ..." : "حفظ المصروف"}
+          {loading ? "جاري الحفظ..." : editingId ? "حفظ التعديلات" : "حفظ المصروف"}
         </button>
+        {editingId && (
+          <button type="button" onClick={cancelEditingExpense} style={{ marginTop: 10, padding: 12, width: "100%", border: "1px solid #ddd", borderRadius: 8, cursor: "pointer" }}>
+            إلغاء التعديل
+          </button>
+        )}
       </form>
 
       {message && (
@@ -203,7 +232,13 @@ function ExpensesContent() {
                   <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>{item.expense_date}</td>
                   <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>{item.notes || "-"}</td>
                   <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>
-                    {role === "manager" && <button
+                    {role === "manager" && <>
+                      <button
+                        type="button"
+                        onClick={() => startEditingExpense(item)}
+                        style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: "#f8e8ef", color: "#922c5c", cursor: "pointer", fontWeight: "bold", marginLeft: 6 }}
+                      >تعديل</button>
+                      <button
                       type="button"
                       onClick={() => deleteExpense(item.id)}
                       style={{
@@ -217,7 +252,8 @@ function ExpensesContent() {
                       }}
                     >
                       حذف
-                    </button>}
+                    </button>
+                    </>}
                   </td>
                 </tr>
               ))}
