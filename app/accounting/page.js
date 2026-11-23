@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import AuthGuard from "../components/AuthGuard";
 
 function getToday() {
   const today = new Date();
@@ -30,7 +31,7 @@ function getPaymentMethodLabel(value) {
   );
 }
 
-export default function AccountingPage() {
+function AccountingContent() {
   const [expenses, setExpenses] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [services, setServices] = useState([]);
@@ -920,5 +921,13 @@ export default function AccountingPage() {
         </a>
       </div>
     </main>
+  );
+}
+
+export default function AccountingPage() {
+  return (
+    <AuthGuard allowedRoles="manager">
+      <AccountingContent />
+    </AuthGuard>
   );
 }
