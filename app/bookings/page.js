@@ -122,12 +122,6 @@ export default function BookingsPage() {
       background: "#fff7ed",
     },
     {
-      status: "confirmed",
-      title: "الحجوزات المؤكدة",
-      color: "#2563eb",
-      background: "#eff6ff",
-    },
-    {
       status: "completed",
       title: "الحجوزات المكتملة",
       color: "#15803d",
@@ -143,7 +137,7 @@ export default function BookingsPage() {
 
   // توحيد عرض الحالة الفارغة باعتبارها حجزًا جديدًا
   function getBookingStatus(booking) {
-    return booking.status || "pending";
+    return !booking.status || booking.status === "confirmed" ? "pending" : booking.status;
   }
 
   function renderBookingTable(group) {
@@ -298,7 +292,6 @@ export default function BookingsPage() {
                           }}
                         >
                           <option value="pending">جديد</option>
-                          <option value="confirmed">مؤكد</option>
                           <option value="completed">مكتمل — اعتماد الإيراد</option>
                           <option value="cancelled">ملغي</option>
                         </select>
