@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import AuthGuard from "../components/AuthGuard";
 
-export default function CustomersPage() {
+function CustomersContent() {
   const [customers, setCustomers] = useState([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -704,5 +705,13 @@ export default function CustomersPage() {
         </section>
       )}
     </main>
+  );
+}
+
+export default function CustomersPage() {
+  return (
+    <AuthGuard allowedRoles="manager">
+      <CustomersContent />
+    </AuthGuard>
   );
 }
