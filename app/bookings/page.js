@@ -13,6 +13,9 @@ function BookingsContent() {
   const [bookings, setBookings] = useState([]);
   const [bookingServices, setBookingServices] = useState([]);
   const [message, setMessage] = useState("");
+  const [editingBooking, setEditingBooking] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   async function loadData() {
     const [
@@ -22,7 +25,7 @@ function BookingsContent() {
       bookingServicesResult,
     ] = await Promise.all([
       supabase.from("customers").select("*").order("full_name"),
-      supabase.from("services").select("*").eq("active", true),
+      supabase.from("services").select("*"),
       supabase.from("bookings").select("*").order("booking_date", {
         ascending: false,
       }),
@@ -49,6 +52,77 @@ function BookingsContent() {
   useEffect(() => {
     loadData();
   }, []);
+
+  function startEditingBooking(booking) {
+    const saved = bookingServices
+      .filter((item) => String(item.booking_id) === String(booking.id))
+      .map((item) => String(item.service_id));
+    const serviceIds = saved.length ? saved : [String(booking.service_id)];
+
+    setEditingBooking(booking.id);
+    setEditDraft({
+      customer_id: String(booking.customer_id || ""),
+      booking_date: booking.booking_date || "",
+      booking_time: String(booking.booking_time || "").slice(0, 5),
+      status: getBookingStatus(booking),
+      notes: booking.notes || "",
+      discount_amount: String(booking.discount_amount || 0),
+      service_ids: serviceIds,
+    });
+    setMessage("");
+  }
+
+  async function saveBookingEdit(event) {
+    event.preventDefault();
+    if (!editingBooking || !editDraft) return;
+
+    const selectedLines = editDraft.service_ids
+      .map((id) => services.find((service) => String(service.id) === String(id)))
+      .filter(Boolean)
+      .map((service) => ({
+        service_id: Number(service.id),
+        price: Number(service.price || 0),
+      }));
+
+    const discount = Number(editDraft.discount_amount || 0);
+    const total = selectedLines.reduce((sum, line) => sum + line.price, 0);
+
+    if (!editDraft.customer_id || !editDraft.booking_date || !editDraft.booking_time) {
+      setMessage("يرجى استكمال العميلة والتاريخ والوقت.");
+      return;
+    }
+    if (selectedLines.length === 0) {
+      setMessage("يجب اختيار خدمة واحدة على الأقل.");
+      return;
+    }
+    if (!Number.isFinite(discount) || discount < 0 || discount > total) {
+      setMessage("قيمة الخصم غير صحيحة أو أكبر من إجمالي الخدمات.");
+      return;
+    }
+
+    setSavingEdit(true);
+    const { error } = await supabase.rpc("manager_update_booking", {
+      p_booking_id: Number(editingBooking),
+      p_customer_id: Number(editDraft.customer_id),
+      p_booking_date: editDraft.booking_date,
+      p_booking_time: editDraft.booking_time,
+      p_status: editDraft.status,
+      p_notes: editDraft.notes || "",
+      p_discount_amount: discount,
+      p_service_lines: selectedLines,
+    });
+    setSavingEdit(false);
+
+    if (error) {
+      setMessage("تعذر حفظ تعديل الحجز: " + error.message);
+      return;
+    }
+
+    setMessage("تم تعديل الحجز وتحديث إيراده في الحسابات.");
+    setEditingBooking(null);
+    setEditDraft(null);
+    await loadData();
+  }
 
   async function updateStatus(id, status) {
     const currentBooking = bookings.find(
@@ -227,6 +301,7 @@ function BookingsContent() {
                   <th>الوقت</th>
                   <th>الحالة</th>
                   <th>الملاحظات</th>
+                  {role === "manager" && <th>الإجراءات</th>}
                 </tr>
               </thead>
 
@@ -300,6 +375,17 @@ function BookingsContent() {
                       </td>
 
                       <td>{booking.notes || "-"}</td>
+                      {role === "manager" && (
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => startEditingBooking(booking)}
+                            style={{ padding: "8px 12px", border: "none", borderRadius: 7, background: "#9d174d", color: "white", cursor: "pointer", fontWeight: "bold" }}
+                          >
+                            تعديل الحجز
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -362,6 +448,42 @@ function BookingsContent() {
         >
           {message}
         </p>
+      )}
+      {role === "manager" && editingBooking && editDraft && (
+        <section style={{ marginTop: 20, padding: 20, border: "1px solid #ead5df", borderRadius: 14, background: "#fffafd" }}>
+          <h2 style={{ color: "#9d174d", marginTop: 0 }}>تعديل الحجز رقم {editingBooking}</h2>
+          <form onSubmit={saveBookingEdit} style={{ display: "grid", gap: 14 }}>
+            <label>
+              العميلة
+              <select value={editDraft.customer_id} onChange={(e) => setEditDraft({ ...editDraft, customer_id: e.target.value })} required style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}>
+                <option value="">اختيار العميلة</option>
+                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name} — {customer.phone}</option>)}
+              </select>
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+              <label>التاريخ<input type="date" value={editDraft.booking_date} onChange={(e) => setEditDraft({ ...editDraft, booking_date: e.target.value })} required style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
+              <label>الوقت<input type="time" value={editDraft.booking_time} onChange={(e) => setEditDraft({ ...editDraft, booking_time: e.target.value })} required style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
+              <label>الحالة<select value={editDraft.status} onChange={(e) => setEditDraft({ ...editDraft, status: e.target.value })} style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}><option value="pending">جديد</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select></label>
+              <label>الخصم<input type="number" min="0" step="0.01" value={editDraft.discount_amount} onChange={(e) => setEditDraft({ ...editDraft, discount_amount: e.target.value })} style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
+            </div>
+            <div>
+              <strong>الخدمات والأسعار</strong>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8, marginTop: 8 }}>
+                {services.map((service) => (
+                  <label key={service.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: 9, border: "1px solid #ead5df", borderRadius: 8 }}>
+                    <input type="checkbox" checked={editDraft.service_ids.includes(String(service.id))} onChange={(e) => setEditDraft({ ...editDraft, service_ids: e.target.checked ? [...editDraft.service_ids, String(service.id)] : editDraft.service_ids.filter((id) => id !== String(service.id))})} />
+                    <span>{service.service_name} — {Number(service.price || 0).toLocaleString("ar-EG")} جنيه</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label>ملاحظات<textarea value={editDraft.notes} onChange={(e) => setEditDraft({ ...editDraft, notes: e.target.value })} rows={3} style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button type="submit" disabled={savingEdit} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#9d174d", color: "white", cursor: "pointer" }}>{savingEdit ? "جارٍ الحفظ..." : "حفظ كل التعديلات"}</button>
+              <button type="button" onClick={() => { setEditingBooking(null); setEditDraft(null); }} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#eee", cursor: "pointer" }}>إلغاء</button>
+            </div>
+          </form>
+        </section>
       )}
 
       {/* عرض الأقسام بالترتيب المحدد */}
