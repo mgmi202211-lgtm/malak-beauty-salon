@@ -704,64 +704,6 @@ export default function AccountingPage() {
         )}
       </section>
 
-      {/* سجل الدفعات */}
-      <section style={{ ...cardStyle, marginBottom: "28px" }}>
-        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
-          سجل الدفعات التاريخية
-        </h2>
-        <p style={{ color: "#88727e", fontSize: "13px" }}>
-          هذه الدفعات محفوظة كما سُجلت قبل النظام الجديد، ولا تدخل ضمن إجمالي الإيرادات المعتمدة.
-        </p>
-
-        {loading ? (
-          <p>جاري تحميل الدفعات...</p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="accounting-table" style={tableStyle}>
-              <thead style={{ background: "#f8e8ef" }}>
-                <tr>
-                  <th style={cellStyle}>رقم الحجز</th>
-                  <th style={cellStyle}>المبلغ</th>
-                  <th style={cellStyle}>طريقة الدفع</th>
-                  <th style={cellStyle}>تاريخ الاستلام</th>
-                  <th style={cellStyle}>ملاحظات</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {payments.map((payment) => (
-                  <tr key={payment.id}>
-                    <td style={cellStyle}>{payment.booking_id}</td>
-                    <td
-                      style={{
-                        ...cellStyle,
-                        color: "#397451",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {formatMoney(payment.amount)}
-                    </td>
-                    <td style={cellStyle}>
-                      {getPaymentMethodLabel(payment.payment_method)}
-                    </td>
-                    <td style={cellStyle}>{payment.payment_date}</td>
-                    <td style={cellStyle}>{payment.notes || "-"}</td>
-                  </tr>
-                ))}
-
-                {payments.length === 0 && (
-                  <tr>
-                    <td colSpan="5" style={cellStyle}>
-                      لا توجد دفعات مسجلة حتى الآن
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
       {/* سجل الإيرادات المعتمدة */}
       <section style={{ ...cardStyle, marginBottom: "28px" }}>
         <h2 style={{ color: "#922c5c", marginTop: 0 }}>
