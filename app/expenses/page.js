@@ -286,21 +286,23 @@ function ExpensesContent() {
           العودة إلى الصفحة الرئيسية
         </Link>
 
-        <Link
-          href="/accounting"
-          style={{
-            display: "block",
-            padding: 14,
-            background: "#f8e8ef",
-            color: "#9d174d",
-            borderRadius: 8,
-            textAlign: "center",
-            textDecoration: "none",
-            fontWeight: "bold",
-          }}
-        >
-          العودة إلى الحسابات
-        </Link>
+        {role === "manager" && (
+          <Link
+            href="/accounting"
+            style={{
+              display: "block",
+              padding: 14,
+              background: "#f8e8ef",
+              color: "#9d174d",
+              borderRadius: 8,
+              textAlign: "center",
+              textDecoration: "none",
+              fontWeight: "bold",
+            }}
+          >
+            العودة إلى الحسابات
+          </Link>
+        )}
       </div>
     </main>
   );
