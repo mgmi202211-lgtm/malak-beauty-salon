@@ -730,41 +730,6 @@ export default function AccountingPage() {
         </div>
       </section>
 
-      {/* سجل الإيرادات المعتمدة */}
-      <section style={{ ...cardStyle, marginBottom: "28px" }}>
-        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
-          سجل الإيرادات المعتمدة عند اكتمال الخدمة
-        </h2>
-        <div style={{ overflowX: "auto" }}>
-          <table className="accounting-table" style={tableStyle}>
-            <thead style={{ background: "#f8e8ef" }}>
-              <tr>
-                <th style={cellStyle}>رقم الحجز</th>
-                <th style={cellStyle}>قيمة الإيراد</th>
-                <th style={cellStyle}>تاريخ الاعتماد</th>
-              </tr>
-            </thead>
-            <tbody>
-              {revenues.map((revenue) => (
-                <tr key={revenue.id}>
-                  <td style={cellStyle}>{revenue.booking_id}</td>
-                  <td style={{ ...cellStyle, color: "#397451", fontWeight: "bold" }}>
-                    {formatMoney(revenue.amount)}
-                  </td>
-                  <td style={cellStyle}>{revenue.revenue_date}</td>
-                </tr>
-              ))}
-              {revenues.length === 0 && (
-                <tr><td colSpan="3" style={cellStyle}>لا توجد إيرادات معتمدة حتى الآن</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        <p style={{ color: "#88727e", fontSize: "13px", marginBottom: 0 }}>
-          كل حجز يظهر مرة واحدة فقط في سجل الإيرادات عند تحويل حالته إلى مكتمل.
-        </p>
-      </section>
-
       {/* سجل الحجوزات */}
       <section style={cardStyle}>
         <h2 style={{ color: "#922c5c", marginTop: 0 }}>
