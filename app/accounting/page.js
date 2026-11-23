@@ -273,6 +273,46 @@ export default function AccountingPage() {
   const reportNetProfit =
     reportTotalRevenue - reportTotalExpenses;
 
+
+  // تقرير المقبوضات حسب طريقة الدفع وتاريخ التحصيل
+  const reportPayments = payments.filter(
+    (payment) =>
+      payment.payment_date >= reportStart &&
+      payment.payment_date <= reportEnd
+  );
+
+  const paymentMethodReport = paymentMethods.map((method) => {
+    const methodPayments = reportPayments.filter(
+      (payment) => payment.payment_method === method.value
+    );
+
+    return {
+      ...method,
+      count: methodPayments.length,
+      total: methodPayments.reduce(
+        (sum, payment) => sum + Number(payment.amount || 0),
+        0
+      ),
+    };
+  });
+
+  const unclassifiedPayments = reportPayments.filter(
+    (payment) =>
+      !paymentMethods.some(
+        (method) => method.value === payment.payment_method
+      )
+  );
+
+  const unclassifiedPaymentTotal = unclassifiedPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0
+  );
+
+  const reportTotalPayments = reportPayments.reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0
+  );
+
   async function saveDiscount(booking) {
     setMessage("");
 
@@ -635,6 +675,59 @@ export default function AccountingPage() {
         <p style={{ marginBottom: 0, color: "#806b77" }}>
           عدد الخدمات المكتملة خلال الفترة: {reportRevenues.length}
         </p>
+
+        <div style={{ marginTop: "26px" }}>
+          <h3 style={{ color: "#922c5c", marginBottom: "8px" }}>
+            تقرير المقبوضات حسب طريقة الدفع
+          </h3>
+          <p style={{ color: "#806b77", fontSize: "13px", marginTop: 0 }}>
+            يعرض المبالغ المسجلة فعليًا في الدفعات خلال الفترة المحددة، وليس الإيرادات المعتمدة عند اكتمال الخدمة.
+          </p>
+
+          <div style={{ overflowX: "auto" }}>
+            <table className="accounting-table" style={tableStyle}>
+              <thead style={{ background: "#f8e8ef" }}>
+                <tr>
+                  <th style={cellStyle}>طريقة الدفع</th>
+                  <th style={cellStyle}>عدد عمليات الدفع</th>
+                  <th style={cellStyle}>إجمالي المقبوضات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentMethodReport.map((item) => (
+                  <tr key={item.value}>
+                    <td style={cellStyle}>{item.label}</td>
+                    <td style={cellStyle}>{item.count}</td>
+                    <td style={{ ...cellStyle, fontWeight: "bold", color: "#397451" }}>
+                      {formatMoney(item.total)}
+                    </td>
+                  </tr>
+                ))}
+                {unclassifiedPayments.length > 0 && (
+                  <tr>
+                    <td style={cellStyle}>طريقة دفع غير محددة / قديمة</td>
+                    <td style={cellStyle}>{unclassifiedPayments.length}</td>
+                    <td style={cellStyle}>{formatMoney(unclassifiedPaymentTotal)}</td>
+                  </tr>
+                )}
+                <tr style={{ background: "#fff7fa", fontWeight: "bold" }}>
+                  <td style={cellStyle}>إجمالي المقبوضات</td>
+                  <td style={cellStyle}>{reportPayments.length}</td>
+                  <td style={{ ...cellStyle, color: "#397451" }}>
+                    {formatMoney(reportTotalPayments)}
+                  </td>
+                </tr>
+                {reportPayments.length === 0 && (
+                  <tr>
+                    <td colSpan="3" style={cellStyle}>
+                      لا توجد دفعات مسجلة خلال الفترة المحددة
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       {/* سجل المصروفات */}
