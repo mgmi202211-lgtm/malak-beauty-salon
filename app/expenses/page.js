@@ -4,8 +4,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import AuthGuard, { useSalonRole } from "../components/AuthGuard";
 
-export default function ExpensesPage() {
+function ExpensesContent() {
+  const { role } = useSalonRole();
   const today = new Date().toLocaleDateString("en-CA");
   const [expenseName, setExpenseName] = useState("");
   const [amount, setAmount] = useState("");
@@ -201,7 +203,7 @@ export default function ExpensesPage() {
                   <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>{item.expense_date}</td>
                   <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>{item.notes || "-"}</td>
                   <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>
-                    <button
+                    {role === "manager" && <button
                       type="button"
                       onClick={() => deleteExpense(item.id)}
                       style={{
@@ -215,7 +217,7 @@ export default function ExpensesPage() {
                       }}
                     >
                       حذف
-                    </button>
+                    </button>}
                   </td>
                 </tr>
               ))}
@@ -265,5 +267,13 @@ export default function ExpensesPage() {
         </Link>
       </div>
     </main>
+  );
+}
+
+export default function ExpensesPage() {
+  return (
+    <AuthGuard>
+      <ExpensesContent />
+    </AuthGuard>
   );
 }
