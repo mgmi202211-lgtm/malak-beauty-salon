@@ -84,7 +84,6 @@ function Dashboard() {
 
   // بيانات الخصم والتحصيل
   const [discountAmount, setDiscountAmount] = useState("0");
-  const [initialPayment, setInitialPayment] = useState("0");
 
   const [saving, setSaving] = useState(false);
   const [formMessage, setFormMessage] = useState("");
@@ -131,6 +130,7 @@ function Dashboard() {
         expensesResult,
         bookingServicesResult,
         paymentsResult,
+        revenuesResult,
       ] = await Promise.all([
         supabase.from("customers").select("*"),
         supabase.from("bookings").select("*"),
@@ -138,6 +138,7 @@ function Dashboard() {
         supabase.from("expenses").select("*"),
         supabase.from("booking_services").select("*"),
         supabase.from("booking_payments").select("*"),
+        supabase.from("booking_revenues").select("*"),
       ]);
 
       const error =
@@ -146,7 +147,8 @@ function Dashboard() {
         servicesResult.error ||
         expensesResult.error ||
         bookingServicesResult.error ||
-        paymentsResult.error;
+        paymentsResult.error ||
+        revenuesResult.error;
 
       if (error) throw error;
 
@@ -156,6 +158,7 @@ function Dashboard() {
       const expenses = expensesResult.data || [];
       const bookingServices = bookingServicesResult.data || [];
       const payments = paymentsResult.data || [];
+      const revenues = revenuesResult.data || [];
 
       const customersById = new Map(
         customers.map((customer) => [
@@ -210,11 +213,11 @@ function Dashboard() {
           0
         );
 
-      // الإيرادات تعتمد على تاريخ الدفع الفعلي
-      const todayRevenue = payments
-        .filter((payment) => payment.payment_date === today)
+      // الإيراد يُعتمد مرة واحدة عند اكتمال الخدمة
+      const todayRevenue = revenues
+        .filter((revenue) => revenue.revenue_date === today)
         .reduce(
-          (sum, payment) => sum + Number(payment.amount || 0),
+          (sum, revenue) => sum + Number(revenue.amount || 0),
           0
         );
 
@@ -228,7 +231,7 @@ function Dashboard() {
 
       // تجهيز أحدث خمسة حجوزات غير مكتملة
       const latest = [...bookings]
-        .filter((booking) => booking.status !== "completed")
+        .filter((booking) => booking.status !== "completed" && booking.status !== "cancelled")
         .sort((a, b) =>
           `${b.booking_date} ${b.booking_time || ""}`.localeCompare(
             `${a.booking_date} ${a.booking_time || ""}`
@@ -442,12 +445,6 @@ function Dashboard() {
 
   const discountValue = Math.max(0, Number(discountAmount || 0));
   const netInvoiceTotal = Math.max(0, invoiceTotal - discountValue);
-  const initialPaymentValue = Math.max(0, Number(initialPayment || 0));
-  const invoiceRemaining = Math.max(
-    0,
-    netInvoiceTotal - initialPaymentValue
-  );
-
   const filteredServices = services.filter((service) =>
     String(service.service_name || "")
       .toLowerCase()
@@ -469,10 +466,9 @@ function Dashboard() {
     setBookingTime("");
     setNotes("");
     setDiscountAmount("0");
-    setInitialPayment("0");
   }
 
-  // حفظ العميلة والحجز والخدمات والدفعة الأولى
+  // حفظ العميلة والحجز والخدمات دون تحصيل دفعة عند إنشاء الفاتورة
   async function saveInvoice(event) {
     event.preventDefault();
 
@@ -483,7 +479,6 @@ function Dashboard() {
     const phone = normalizePhone(customerPhone);
 
     const discount = Number(discountAmount || 0);
-    const paid = Number(initialPayment || 0);
     const netTotal = invoiceTotal - discount;
 
     if (!phone) {
@@ -508,16 +503,6 @@ function Dashboard() {
 
     if (discount > invoiceTotal) {
       setFormError("الخصم لا يمكن أن يكون أكبر من إجمالي الخدمات");
-      return;
-    }
-
-    if (!Number.isFinite(paid) || paid < 0) {
-      setFormError("المبلغ المدفوع غير صحيح");
-      return;
-    }
-
-    if (paid > netTotal) {
-      setFormError("المبلغ المدفوع لا يمكن أن يكون أكبر من صافي الفاتورة");
       return;
     }
 
@@ -594,37 +579,10 @@ function Dashboard() {
         throw servicesError;
       }
 
-      // تسجيل الدفعة الأولى إذا تم دفع مبلغ
-      let paymentWarning = "";
-
-      if (paid > 0) {
-        const { error: paymentError } = await supabase
-          .from("booking_payments")
-          .insert({
-            booking_id: newBooking.id,
-            amount: paid,
-            payment_date: todayDate(),
-            notes: "الدفعة الأولى عند إنشاء الفاتورة",
-          });
-
-        if (paymentError) {
-          console.error("Initial Payment Error:", paymentError);
-
-          paymentWarning =
-            " — تنبيه: تم حفظ الفاتورة، لكن لم يتم تسجيل الدفعة الأولى. " +
-            "يرجى تسجيلها من سجل الدفعات لاحقًا. سبب الخطأ: " +
-            paymentError.message;
-        }
-      }
-
       setFormMessage(
         `تم حفظ الفاتورة بنجاح — رقم الحجز: ${newBooking.id}. ` +
           `صافي الفاتورة: ${money(netTotal)}. ` +
-          `المدفوع: ${money(paymentWarning ? 0 : paid)}. ` +
-          `المتبقي: ${money(
-            paymentWarning ? netTotal : netTotal - paid
-          )}` +
-          paymentWarning
+          "سيتم اعتماد الإيراد عند اكتمال الخدمة."
       );
 
       resetInvoiceForm();
@@ -652,7 +610,7 @@ function Dashboard() {
       icon: "📅",
     },
     {
-      title: "مقبوضات اليوم",
+      title: "إيراد اليوم",
       value: money(stats.revenue),
       color: "#65a786",
       icon: "💰",
@@ -1522,55 +1480,8 @@ function Dashboard() {
                 </strong>
               </div>
 
-              <div>
-                <label style={labelStyle}>المبلغ المدفوع الآن</label>
-                <input
-                  style={inputStyle}
-                  type="number"
-                  min="0"
-                  max={netInvoiceTotal}
-                  step="0.01"
-                  value={initialPayment}
-                  onChange={(e) => setInitialPayment(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: "12px",
-                flexWrap: "wrap",
-                marginTop: "18px",
-                padding: "16px",
-                borderRadius: "10px",
-                background: "#f0f8f2",
-                border: "1px solid #cce4d2",
-              }}
-            >
-              <strong style={{ color: "#397451", fontSize: "17px" }}>
-                المبلغ المتبقي
-              </strong>
-
-              <strong style={{ color: "#397451", fontSize: "23px" }}>
-                {money(invoiceRemaining)}
-              </strong>
-            </div>
-
-            <p
-              style={{
-                color: "#927d89",
-                fontSize: "12px",
-                lineHeight: "1.8",
-                marginBottom: 0,
-              }}
-            >
-              سيتم تسجيل المبلغ المدفوع في سجل الدفعات بتاريخ اليوم، ويمكن
-              إضافة دفعات أخرى لاحقًا من شاشة متابعة الحسابات.
-            </p>
           </div>
 
           <div style={{ marginBottom: "20px" }}>

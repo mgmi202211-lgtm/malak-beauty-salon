@@ -53,9 +53,18 @@ export default function BookingsPage() {
       (booking) => String(booking.id) === String(id)
     );
 
-    // منع تغيير حالة الحجز بعد اكتماله
+    // منع تعديل الحجز بعد اعتماده أو اعتماد حجز ملغي مباشرة
     if (currentBooking && getBookingStatus(currentBooking) === "completed") {
       setMessage("لا يمكن تغيير حالة حجز مكتمل.");
+      return;
+    }
+
+    if (currentBooking && getBookingStatus(currentBooking) === "cancelled" && status === "completed") {
+      setMessage("لا يمكن اعتماد حجز ملغي مباشرة. راجع حالته أولاً.");
+      return;
+    }
+
+    if (status === "completed" && !window.confirm("تأكيد اكتمال الخدمة؟ سيتم اعتماد إيرادها مرة واحدة في الحسابات.")) {
       return;
     }
 
@@ -67,7 +76,9 @@ export default function BookingsPage() {
     if (error) {
       setMessage("تعذر تعديل حالة الحجز: " + error.message);
     } else {
-      setMessage("تم تعديل حالة الحجز.");
+      setMessage(status === "completed"
+        ? "تم اعتماد الخدمة وتسجيل إيرادها مرة واحدة."
+        : "تم تعديل حالة الحجز.");
       await loadData();
     }
   }
@@ -288,7 +299,7 @@ export default function BookingsPage() {
                         >
                           <option value="pending">جديد</option>
                           <option value="confirmed">مؤكد</option>
-                          <option value="completed">مكتمل</option>
+                          <option value="completed">مكتمل — اعتماد الإيراد</option>
                           <option value="cancelled">ملغي</option>
                         </select>
                       </td>

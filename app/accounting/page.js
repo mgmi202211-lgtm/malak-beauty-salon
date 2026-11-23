@@ -36,20 +36,14 @@ export default function AccountingPage() {
   const [services, setServices] = useState([]);
   const [bookingServices, setBookingServices] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [revenues, setRevenues] = useState([]);
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [savingPayment, setSavingPayment] = useState(false);
   const [savingDiscount, setSavingDiscount] = useState(false);
 
   const [reportPeriod, setReportPeriod] = useState("daily");
   const [reportDate, setReportDate] = useState(getToday());
-
-  const [selectedBooking, setSelectedBooking] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentDate, setPaymentDate] = useState(getToday());
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [paymentNotes, setPaymentNotes] = useState("");
 
   const [discountDrafts, setDiscountDrafts] = useState({});
 
@@ -63,6 +57,7 @@ export default function AccountingPage() {
       serviceResult,
       bookingServicesResult,
       paymentResult,
+      revenueResult,
     ] = await Promise.all([
       supabase
         .from("expenses")
@@ -90,6 +85,11 @@ export default function AccountingPage() {
           "id, booking_id, amount, payment_date, payment_method, notes, created_at"
         )
         .order("payment_date", { ascending: false }),
+
+      supabase
+        .from("booking_revenues")
+        .select("id, booking_id, amount, revenue_date, created_at")
+        .order("revenue_date", { ascending: false }),
     ]);
 
     setLoading(false);
@@ -103,7 +103,8 @@ export default function AccountingPage() {
       bookingResult.error ||
       serviceResult.error ||
       bookingServicesResult.error ||
-      paymentResult.error
+      paymentResult.error ||
+      revenueResult.error
     ) {
       setMessage(
         "خطأ في تحميل بيانات الحسابات: " +
@@ -111,7 +112,8 @@ export default function AccountingPage() {
             bookingResult.error?.message ||
             serviceResult.error?.message ||
             bookingServicesResult.error?.message ||
-            paymentResult.error?.message
+            paymentResult.error?.message ||
+            revenueResult.error?.message
           )
       );
       return;
@@ -122,6 +124,7 @@ export default function AccountingPage() {
     setServices(serviceResult.data || []);
     setBookingServices(bookingServicesResult.data || []);
     setPayments(paymentResult.data || []);
+    setRevenues(revenueResult.data || []);
 
     const drafts = {};
     (bookingResult.data || []).forEach((booking) => {
@@ -209,23 +212,19 @@ export default function AccountingPage() {
   const getBookingNet = (booking) =>
     Math.max(0, getBookingTotal(booking) - getBookingDiscount(booking));
 
-  const getBookingRemaining = (booking) =>
-    Math.max(0, getBookingNet(booking) - getBookingPaid(booking.id));
-
   const totalExpenses = expenses.reduce(
     (sum, item) => sum + Number(item.amount || 0),
     0
   );
 
-  const totalRevenue = payments.reduce(
+  const totalRevenue = revenues.reduce(
     (sum, item) => sum + Number(item.amount || 0),
     0
   );
 
-  const totalRemaining = bookings.reduce(
-    (sum, booking) => sum + getBookingRemaining(booking),
-    0
-  );
+  const totalRemaining = bookings
+    .filter((booking) => !["completed", "cancelled"].includes(booking.status || "pending"))
+    .reduce((sum, booking) => sum + getBookingNet(booking), 0);
 
   const netProfit = totalRevenue - totalExpenses;
 
@@ -254,11 +253,11 @@ export default function AccountingPage() {
       item.expense_date <= reportEnd
   );
 
-  // المقبوضات تُحسب حسب تاريخ استلام الدفعة الفعلي
-  const reportPayments = payments.filter(
+  // الإيرادات تُحسب حسب تاريخ اعتماد اكتمال الخدمة
+  const reportRevenues = revenues.filter(
     (item) =>
-      item.payment_date >= reportStart &&
-      item.payment_date <= reportEnd
+      item.revenue_date >= reportStart &&
+      item.revenue_date <= reportEnd
   );
 
   const reportTotalExpenses = reportExpenses.reduce(
@@ -266,7 +265,7 @@ export default function AccountingPage() {
     0
   );
 
-  const reportTotalRevenue = reportPayments.reduce(
+  const reportTotalRevenue = reportRevenues.reduce(
     (sum, item) => sum + Number(item.amount || 0),
     0
   );
@@ -274,89 +273,15 @@ export default function AccountingPage() {
   const reportNetProfit =
     reportTotalRevenue - reportTotalExpenses;
 
-  const methodTotals = paymentMethods.map((method) => ({
-    ...method,
-    amount: reportPayments
-      .filter((payment) => payment.payment_method === method.value)
-      .reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
-  }));
-
-  const availableBookings = bookings.filter(
-    (booking) => getBookingRemaining(booking) > 0
-  );
-
-  const selectedBookingData = bookings.find(
-    (booking) => String(booking.id) === String(selectedBooking)
-  );
-
-  async function addPayment(event) {
-    event.preventDefault();
-    setMessage("");
-
-    if (!selectedBookingData) {
-      setMessage("من فضلك اختر الحجز أولًا");
-      return;
-    }
-
-    const amount = Number(paymentAmount);
-    const remaining = getBookingRemaining(selectedBookingData);
-
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setMessage("يجب إدخال مبلغ صحيح أكبر من صفر");
-      return;
-    }
-
-    if (amount > remaining) {
-      setMessage(
-        `المبلغ أكبر من المتبقي. المبلغ المتبقي هو ${formatMoney(remaining)}`
-      );
-      return;
-    }
-
-    if (!paymentDate) {
-      setMessage("من فضلك اختر تاريخ الدفع");
-      return;
-    }
-
-    if (
-      !paymentMethods.some((method) => method.value === paymentMethod)
-    ) {
-      setMessage("طريقة الدفع غير صحيحة");
-      return;
-    }
-
-    setSavingPayment(true);
-
-    const { error } = await supabase
-      .from("booking_payments")
-      .insert({
-        booking_id: selectedBookingData.id,
-        amount,
-        payment_date: paymentDate,
-        payment_method: paymentMethod,
-        notes: paymentNotes.trim() || null,
-      });
-
-    setSavingPayment(false);
-
-    if (error) {
-      setMessage("تعذر تسجيل الدفعة: " + error.message);
-      return;
-    }
-
-    setMessage("تم تسجيل الدفعة بنجاح");
-
-    setPaymentAmount("");
-    setPaymentNotes("");
-    setSelectedBooking("");
-
-    await loadExpenses();
-  }
-
   async function saveDiscount(booking) {
     setMessage("");
 
     const discount = Number(discountDrafts[booking.id]);
+
+    if (booking.status === "completed" || booking.status === "cancelled") {
+      setMessage("لا يمكن تعديل خصم حجز مكتمل أو ملغي.");
+      return;
+    }
 
     if (!Number.isFinite(discount) || discount < 0) {
       setMessage("قيمة الخصم غير صحيحة");
@@ -494,7 +419,7 @@ export default function AccountingPage() {
         }}
       >
         <div style={{ ...cardStyle, borderTop: "5px solid #bd8b35" }}>
-          <div style={{ color: "#8b6a2d" }}>إجمالي المقبوضات</div>
+          <div style={{ color: "#8b6a2d" }}>إجمالي الإيرادات المعتمدة</div>
           <h2 style={{ color: "#9b7025", marginBottom: 0 }}>
             {formatMoney(totalRevenue)}
           </h2>
@@ -508,7 +433,7 @@ export default function AccountingPage() {
         </div>
 
         <div style={{ ...cardStyle, borderTop: "5px solid #548b70" }}>
-          <div style={{ color: "#397451" }}>صافي المقبوضات بعد المصروفات</div>
+          <div style={{ color: "#397451" }}>صافي الإيرادات بعد المصروفات</div>
           <h2
             style={{
               color: netProfit >= 0 ? "#397451" : "#b42318",
@@ -520,7 +445,7 @@ export default function AccountingPage() {
         </div>
 
         <div style={{ ...cardStyle, borderTop: "5px solid #80618f" }}>
-          <div style={{ color: "#80618f" }}>المبالغ المتبقية</div>
+          <div style={{ color: "#80618f" }}>قيمة الحجوزات غير المكتملة</div>
           <h2 style={{ color: "#80618f", marginBottom: 0 }}>
             {formatMoney(totalRemaining)}
           </h2>
@@ -549,170 +474,6 @@ export default function AccountingPage() {
           {message}
         </div>
       )}
-
-      {/* تسجيل دفعة */}
-      <section
-        className="no-print"
-        style={{ ...cardStyle, marginBottom: "28px" }}
-      >
-        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
-          تسجيل دفعة جديدة
-        </h2>
-
-        <p style={{ color: "#88727e", fontSize: "14px" }}>
-          اختر الحجز وسجل المبلغ وطريقة الدفع وتاريخ الاستلام.
-        </p>
-
-        <form
-          onSubmit={addPayment}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-            gap: "15px",
-            alignItems: "end",
-          }}
-        >
-          <div>
-            <label style={{ display: "block", marginBottom: "8px" }}>
-              الحجز
-            </label>
-
-            <select
-              value={selectedBooking}
-              onChange={(event) => setSelectedBooking(event.target.value)}
-              required
-              style={inputStyle}
-            >
-              <option value="">اختر الحجز</option>
-              {availableBookings.map((booking) => (
-                <option key={booking.id} value={booking.id}>
-                  حجز رقم {booking.id} - متبقي{" "}
-                  {Number(getBookingRemaining(booking)).toFixed(2)} جنيه
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "8px" }}>
-              المبلغ المدفوع
-            </label>
-
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              max={
-                selectedBookingData
-                  ? getBookingRemaining(selectedBookingData)
-                  : undefined
-              }
-              value={paymentAmount}
-              onChange={(event) => setPaymentAmount(event.target.value)}
-              placeholder="المبلغ بالجنيه"
-              required
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "8px" }}>
-              طريقة الدفع
-            </label>
-
-            <select
-              value={paymentMethod}
-              onChange={(event) => setPaymentMethod(event.target.value)}
-              required
-              style={inputStyle}
-            >
-              {paymentMethods.map((method) => (
-                <option key={method.value} value={method.value}>
-                  {method.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "8px" }}>
-              تاريخ الدفع
-            </label>
-
-            <input
-              type="date"
-              value={paymentDate}
-              onChange={(event) => setPaymentDate(event.target.value)}
-              required
-              style={inputStyle}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: "block", marginBottom: "8px" }}>
-              ملاحظات
-            </label>
-
-            <input
-              type="text"
-              value={paymentNotes}
-              onChange={(event) => setPaymentNotes(event.target.value)}
-              placeholder="ملاحظات اختيارية"
-              style={inputStyle}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={savingPayment || availableBookings.length === 0}
-            className="accounting-button"
-            style={{
-              ...buttonStyle,
-              background: "#922c5c",
-              color: "white",
-              height: "43px",
-              opacity:
-                savingPayment || availableBookings.length === 0 ? 0.6 : 1,
-            }}
-          >
-            {savingPayment ? "جاري التسجيل..." : "تسجيل الدفعة"}
-          </button>
-        </form>
-
-        {availableBookings.length === 0 && (
-          <p style={{ color: "#88727e", marginBottom: 0 }}>
-            لا توجد حجوزات عليها مبالغ متبقية حاليًا.
-          </p>
-        )}
-
-        {selectedBookingData && (
-          <div
-            style={{
-              marginTop: "18px",
-              padding: "14px",
-              background: "#fff7fa",
-              borderRadius: "10px",
-              lineHeight: 1.9,
-            }}
-          >
-            <div>
-              إجمالي الحجز: {formatMoney(getBookingTotal(selectedBookingData))}
-            </div>
-            <div>
-              الخصم: {formatMoney(getBookingDiscount(selectedBookingData))}
-            </div>
-            <div>
-              صافي الفاتورة: {formatMoney(getBookingNet(selectedBookingData))}
-            </div>
-            <div>
-              المدفوع: {formatMoney(getBookingPaid(selectedBookingData.id))}
-            </div>
-            <strong style={{ color: "#922c5c" }}>
-              المتبقي: {formatMoney(getBookingRemaining(selectedBookingData))}
-            </strong>
-          </div>
-        )}
-      </section>
 
       {/* إدارة المصروفات */}
       <section
@@ -859,7 +620,7 @@ export default function AccountingPage() {
 
           <div style={{ ...cardStyle, background: "#f3faf5" }}>
             <div style={{ color: "#397451" }}>
-              صافي المقبوضات بعد المصروفات
+              صافي الإيرادات بعد المصروفات
             </div>
             <h2
               style={{
@@ -871,37 +632,8 @@ export default function AccountingPage() {
           </div>
         </div>
 
-        <h3 style={{ color: "#922c5c", marginTop: "25px" }}>
-          المقبوضات حسب طريقة الدفع
-        </h3>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: "12px",
-          }}
-        >
-          {methodTotals.map((method) => (
-            <div
-              key={method.value}
-              style={{
-                background: "#fff7fa",
-                padding: "17px",
-                borderRadius: "12px",
-                border: "1px solid #f1dce5",
-              }}
-            >
-              <div style={{ color: "#806b77" }}>{method.label}</div>
-              <strong style={{ color: "#922c5c", fontSize: "19px" }}>
-                {formatMoney(method.amount)}
-              </strong>
-            </div>
-          ))}
-        </div>
-
         <p style={{ marginBottom: 0, color: "#806b77" }}>
-          عدد الدفعات خلال الفترة: {reportPayments.length}
+          عدد الخدمات المكتملة خلال الفترة: {reportRevenues.length}
         </p>
       </section>
 
@@ -975,8 +707,11 @@ export default function AccountingPage() {
       {/* سجل الدفعات */}
       <section style={{ ...cardStyle, marginBottom: "28px" }}>
         <h2 style={{ color: "#922c5c", marginTop: 0 }}>
-          سجل الدفعات والمقبوضات
+          سجل الدفعات التاريخية
         </h2>
+        <p style={{ color: "#88727e", fontSize: "13px" }}>
+          هذه الدفعات محفوظة كما سُجلت قبل النظام الجديد، ولا تدخل ضمن إجمالي الإيرادات المعتمدة.
+        </p>
 
         {loading ? (
           <p>جاري تحميل الدفعات...</p>
@@ -1027,6 +762,41 @@ export default function AccountingPage() {
         )}
       </section>
 
+      {/* سجل الإيرادات المعتمدة */}
+      <section style={{ ...cardStyle, marginBottom: "28px" }}>
+        <h2 style={{ color: "#922c5c", marginTop: 0 }}>
+          سجل الإيرادات المعتمدة عند اكتمال الخدمة
+        </h2>
+        <div style={{ overflowX: "auto" }}>
+          <table className="accounting-table" style={tableStyle}>
+            <thead style={{ background: "#f8e8ef" }}>
+              <tr>
+                <th style={cellStyle}>رقم الحجز</th>
+                <th style={cellStyle}>قيمة الإيراد</th>
+                <th style={cellStyle}>تاريخ الاعتماد</th>
+              </tr>
+            </thead>
+            <tbody>
+              {revenues.map((revenue) => (
+                <tr key={revenue.id}>
+                  <td style={cellStyle}>{revenue.booking_id}</td>
+                  <td style={{ ...cellStyle, color: "#397451", fontWeight: "bold" }}>
+                    {formatMoney(revenue.amount)}
+                  </td>
+                  <td style={cellStyle}>{revenue.revenue_date}</td>
+                </tr>
+              ))}
+              {revenues.length === 0 && (
+                <tr><td colSpan="3" style={cellStyle}>لا توجد إيرادات معتمدة حتى الآن</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p style={{ color: "#88727e", fontSize: "13px", marginBottom: 0 }}>
+          كل حجز يظهر مرة واحدة فقط في سجل الإيرادات عند تحويل حالته إلى مكتمل.
+        </p>
+      </section>
+
       {/* سجل الحجوزات */}
       <section style={cardStyle}>
         <h2 style={{ color: "#922c5c", marginTop: 0 }}>
@@ -1046,8 +816,7 @@ export default function AccountingPage() {
                   <th style={cellStyle}>الإجمالي</th>
                   <th style={cellStyle}>الخصم</th>
                   <th style={cellStyle}>صافي الفاتورة</th>
-                  <th style={cellStyle}>المدفوع</th>
-                  <th style={cellStyle}>المتبقي</th>
+                  <th style={cellStyle}>الإيراد المعتمد</th>
                   <th className="no-print" style={cellStyle}>حفظ الخصم</th>
                 </tr>
               </thead>
@@ -1058,8 +827,9 @@ export default function AccountingPage() {
                   const total = getBookingTotal(booking);
                   const discount = getBookingDiscount(booking);
                   const net = getBookingNet(booking);
-                  const paid = getBookingPaid(booking.id);
-                  const remaining = getBookingRemaining(booking);
+                  const recognizedRevenue = revenues.find(
+                    (revenue) => String(revenue.booking_id) === String(booking.id)
+                  );
 
                   return (
                     <tr key={booking.id}>
@@ -1068,7 +838,9 @@ export default function AccountingPage() {
                         <div style={{ color: "#88727e", fontSize: "11px" }}>
                           {booking.status === "completed"
                             ? "مكتمل"
-                            : "غير مكتمل"}
+                            : booking.status === "cancelled"
+                              ? "ملغي"
+                              : "غير مكتمل"}
                         </div>
                       </td>
 
@@ -1149,17 +921,7 @@ export default function AccountingPage() {
                           fontWeight: "bold",
                         }}
                       >
-                        {formatMoney(paid)}
-                      </td>
-
-                      <td
-                        style={{
-                          ...cellStyle,
-                          color: remaining > 0 ? "#b42318" : "#397451",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {formatMoney(remaining)}
+                        {recognizedRevenue ? formatMoney(recognizedRevenue.amount) : "—"}
                       </td>
 
                       <td className="no-print" style={cellStyle}>
@@ -1184,7 +946,7 @@ export default function AccountingPage() {
 
                 {bookings.length === 0 && (
                   <tr>
-                    <td colSpan="9" style={cellStyle}>
+                    <td colSpan="8" style={cellStyle}>
                       لا توجد حجوزات حتى الآن
                     </td>
                   </tr>
@@ -1202,9 +964,9 @@ export default function AccountingPage() {
             lineHeight: 1.8,
           }}
         >
-          يتم احتساب المقبوضات من الدفعات المسجلة فعليًا، ويُحدد تاريخ
-          الإيراد حسب تاريخ استلام الدفعة. ويمكن تسجيل أكثر من دفعة
-          للحجز الواحد، مع متابعة الخصم والمدفوع والمتبقي.
+          يتم اعتماد الإيراد مرة واحدة عند اكتمال الخدمة، ويُسجل بتاريخ
+          الاعتماد. أما الدفعات المسجلة قبل تطبيق النظام الجديد فتظل محفوظة
+          في السجل التاريخي ولا تُضاف مرة أخرى إلى إجمالي الإيرادات.
         </p>
       </section>
 
