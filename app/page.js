@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
-import AuthGuard from "./components/AuthGuard";
+import AuthGuard, { useSalonRole } from "./components/AuthGuard";
 import BackupButton from "./components/BackupButton";
 
 // تحويل الأرقام العربية إلى إنجليزية وتنظيف رقم الهاتف
@@ -53,6 +53,7 @@ const labelStyle = {
 
 function Dashboard() {
   const router = useRouter();
+  const { role } = useSalonRole();
 
   const [stats, setStats] = useState({
     customers: 0,
@@ -1859,7 +1860,7 @@ function Dashboard() {
             </h2>
 
             <div className="dashboard-links-grid">
-              {links.map((item) => (
+              {links.filter((item) => role === "manager" || !["/services", "/accounting"].includes(item.href)).map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -1906,7 +1907,7 @@ function Dashboard() {
         </>
       )}
 
-      <BackupButton />
+      {role === "manager" && <BackupButton />}
 
       <footer
         style={{
