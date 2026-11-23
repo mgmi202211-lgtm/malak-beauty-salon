@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 
@@ -13,6 +13,38 @@ export default function ExpensesPage() {
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expenses, setExpenses] = useState([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(true);
+
+  async function loadExpenses() {
+    setLoadingExpenses(true);
+    const { data, error } = await supabase
+      .from("expenses")
+      .select("*")
+      .order("expense_date", { ascending: false });
+
+    setLoadingExpenses(false);
+    if (error) {
+      setMessage("تعذر تحميل سجل المصروفات: " + error.message);
+      return;
+    }
+    setExpenses(data || []);
+  }
+
+  useEffect(() => {
+    loadExpenses();
+  }, []);
+
+  async function deleteExpense(id) {
+    if (!window.confirm("هل تريد حذف هذا المصروف؟")) return;
+    const { error } = await supabase.from("expenses").delete().eq("id", id);
+    if (error) {
+      setMessage("تعذر حذف المصروف: " + error.message);
+      return;
+    }
+    setMessage("تم حذف المصروف بنجاح");
+    await loadExpenses();
+  }
 
   async function addExpense(e) {
     e.preventDefault();
@@ -38,6 +70,7 @@ export default function ExpensesPage() {
     setExpenseDate(today);
     setNotes("");
     setMessage("تم إضافة المصروف بنجاح");
+    await loadExpenses();
   }
 
   return (
@@ -131,6 +164,65 @@ export default function ExpensesPage() {
           {message}
         </p>
       )}
+
+      <section
+        style={{
+          marginTop: 35,
+          padding: 20,
+          border: "1px solid #f1dce5",
+          borderRadius: 16,
+          background: "#fffafd",
+          overflowX: "auto",
+        }}
+      >
+        <h2 style={{ color: "#922c5c", marginTop: 0 }}>سجل المصروفات</h2>
+        {loadingExpenses ? (
+          <p>جاري تحميل سجل المصروفات...</p>
+        ) : expenses.length === 0 ? (
+          <p>لا توجد مصروفات مسجلة حتى الآن.</p>
+        ) : (
+          <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f8e8ef" }}>
+                <th style={{ padding: 12, textAlign: "center" }}>المصروف</th>
+                <th style={{ padding: 12, textAlign: "center" }}>المبلغ</th>
+                <th style={{ padding: 12, textAlign: "center" }}>التاريخ</th>
+                <th style={{ padding: 12, textAlign: "center" }}>ملاحظات</th>
+                <th style={{ padding: 12, textAlign: "center" }}>الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.map((item) => (
+                <tr key={item.id}>
+                  <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>{item.expense_name}</td>
+                  <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb", fontWeight: "bold" }}>
+                    {Number(item.amount || 0).toLocaleString("ar-EG")} جنيه
+                  </td>
+                  <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>{item.expense_date}</td>
+                  <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>{item.notes || "-"}</td>
+                  <td style={{ padding: 12, textAlign: "center", borderBottom: "1px solid #f3e5eb" }}>
+                    <button
+                      type="button"
+                      onClick={() => deleteExpense(item.id)}
+                      style={{
+                        padding: "8px 14px",
+                        border: "none",
+                        borderRadius: 8,
+                        background: "#fff0f0",
+                        color: "#b42318",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      حذف
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       <div
         style={{
