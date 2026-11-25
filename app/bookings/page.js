@@ -67,9 +67,8 @@ function BookingsContent() {
 
   async function removeBooking(b) {
     if (!manager) return;
-    if (b.status === "completed") return setMessage("لا يمكن حذف حجز مكتمل لأنه محفوظ ضمن الإيرادات. يمكنك الاحتفاظ به في السجل.");
     const customer = customerOf(b);
-    if (!window.confirm("تأكيد حذف الحجز رقم " + b.id + " للعميلة " + (customer?.full_name || "") + "؟ لا يمكن حذف أي حجز مرتبط بإيرادات أو مدفوعات، ولن يتم المساس بالسجلات المالية.")) return;
+    if (!window.confirm("تأكيد الحذف النهائي للحجز رقم " + b.id + " للعميلة " + (customer?.full_name || "") + "؟ سيتم حذف الحجز وكل الخدمات والإيرادات والمدفوعات المرتبطة به من الحسابات والتقارير. لا يمكن التراجع عن هذا الإجراء.")) return;
     setDeleting(b.id);
     const { error } = await supabase.rpc("manager_delete_booking", { p_booking_id: Number(b.id) });
     setDeleting(null);
@@ -118,7 +117,7 @@ function BookingsContent() {
               <td style={{ padding: 12, color: "#70445f", fontWeight: 700, whiteSpace: "nowrap" }}>{net.toLocaleString("ar-EG")} ج</td>
               <td style={{ padding: 12, whiteSpace: "nowrap" }}>{b.booking_date || "-"}</td>
               <td style={{ padding: 12, whiteSpace: "nowrap" }}>{String(b.booking_time || "").slice(0,5) || "-"}</td>
-              {manager && <td style={{ padding: 10, minWidth: 155 }}><div style={{ display: "flex", justifyContent: "center", gap: 7, flexWrap: "wrap" }}><button type="button" onClick={() => beginEdit(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: "#70445f", cursor: "pointer", fontWeight: 700 }}>تعديل</button><button type="button" disabled={deleting === b.id || b.status === "completed"} title={b.status === "completed" ? "الحجز المكتمل محفوظ في سجل الإيرادات ولا يمكن حذفه" : "حذف الحجز"} onClick={() => removeBooking(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: b.status === "completed" ? "#999" : "#a83245", cursor: b.status === "completed" ? "not-allowed" : "pointer", opacity: deleting === b.id ? .6 : 1, fontWeight: 700 }}>{deleting === b.id ? "جارٍ الحذف" : b.status === "completed" ? "مكتمل" : "حذف"}</button></div></td>}
+              {manager && <td style={{ padding: 10, minWidth: 155 }}><div style={{ display: "flex", justifyContent: "center", gap: 7, flexWrap: "wrap" }}><button type="button" onClick={() => beginEdit(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: "#70445f", cursor: "pointer", fontWeight: 700 }}>تعديل</button><button type="button" disabled={deleting === b.id} title="حذف الحجز نهائيًا مع سجلاته المالية" onClick={() => removeBooking(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: "#a83245", cursor: deleting === b.id ? "wait" : "pointer", opacity: deleting === b.id ? .6 : 1, fontWeight: 700 }}>{deleting === b.id ? "جارٍ الحذف" : "حذف نهائي"}</button></div></td>}
             </tr>;
           })}</tbody>
         </table>
@@ -138,7 +137,7 @@ function BookingsContent() {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button type="submit" disabled={saving} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#70445f", color: "white", cursor: "pointer" }}>{saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}</button><button type="button" onClick={() => {setEditing(null);setDraft(null);}} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#eee", cursor: "pointer" }}>إلغاء</button></div>
       </form>
     </section>}
-    {!manager && <p style={{ marginTop: 14, color: "#76596b", fontSize: 13 }}>العرض فقط — تعديل الحجوزات أو حذفها متاح لحساب المدير فقط.</p>}
+    {!manager && <p style={{ marginTop: 14, color: "#76596b", fontSize: 13 }}>العرض فقط — تعديل الحجوزات أو حذفها نهائيًا متاح لحساب المدير فقط.</p>}
   </main>;
 }
 export default function BookingsPage() { return <AuthGuard><BookingsContent /></AuthGuard>; }
