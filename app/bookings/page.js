@@ -34,7 +34,6 @@ function BookingsContent() {
   useEffect(() => { load(); }, []);
 
   const statusOf = b => !b.status || b.status === "confirmed" ? "pending" : b.status;
-  const statusName = s => ({ pending: "جديد", completed: "مكتمل", cancelled: "ملغي" })[s] || s;
   const customerOf = b => customers.find(c => String(c.id) === String(b.customer_id));
   const servicesOf = b => {
     const saved = lines.filter(x => String(x.booking_id) === String(b.id));
@@ -79,14 +78,6 @@ function BookingsContent() {
     await load();
   }
 
-  async function changeStatus(id, status) {
-    if (!manager) return;
-    if (status === "completed" && !window.confirm("تأكيد اكتمال الخدمة؟ سيتم اعتماد الإيراد مرة واحدة.")) return;
-    const { error } = await supabase.from("bookings").update({ status }).eq("id", id);
-    if (error) return setMessage("تعذر تعديل الحالة: " + error.message);
-    setMessage("تم تحديث حالة الحجز."); await load();
-  }
-
   const visible = useMemo(() => {
     const q = search.trim().toLocaleLowerCase("ar");
     if (!q) return bookings;
@@ -97,9 +88,6 @@ function BookingsContent() {
     });
   }, [bookings, customers, lines, services, search]);
 
-  const countCompleted = bookings.filter(b => statusOf(b) === "completed").length;
-  const countPending = bookings.filter(b => statusOf(b) === "pending").length;
-
   return <main dir="rtl" style={{ maxWidth: 1500, margin: "24px auto", padding: "16px 20px 40px", fontFamily: "Arial,sans-serif", color: "#382337" }}>
     <Link href="/" style={{ display: "inline-block", padding: "11px 18px", background: "#70445f", color: "white", textDecoration: "none", borderRadius: 9, marginBottom: 18, fontWeight: "bold" }}>← العودة إلى الصفحة الرئيسية</Link>
     <header style={{ background: "linear-gradient(120deg,#382337,#70445f)", color: "white", padding: "22px 24px", borderRadius: 16 }}>
@@ -107,9 +95,6 @@ function BookingsContent() {
       <h1 style={{ margin: "7px 0", fontSize: 27 }}>سجل الحجوزات</h1>
       <p style={{ margin: 0, color: "#f5eaf0" }}>كل الحجوزات في سجل واحد بكامل بيانات العميلة والخدمات والمواعيد.</p>
     </header>
-    <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, margin: "18px 0" }}>
-      {[["إجمالي الحجوزات", bookings.length], ["حجوزات جديدة", countPending], ["حجوزات مكتملة", countCompleted]].map(x => <div key={x[0]} style={{ background: "white", border: "1px solid #eadde4", borderRadius: 12, padding: 15 }}><div style={{ color: "#76596b" }}>{x[0]}</div><strong style={{ display: "block", fontSize: 25, color: "#70445f", marginTop: 5 }}>{x[1]}</strong></div>)}
-    </section>
     {message && <div role="status" style={{ padding: 13, background: "#fff4f7", color: "#70445f", border: "1px solid #ead2dd", borderRadius: 9, margin: "14px 0" }}>{message}</div>}
     <section style={{ background: "white", border: "1px solid #eadde4", borderRadius: 14, padding: 16, marginTop: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
@@ -121,7 +106,7 @@ function BookingsContent() {
         <table style={{ width: "100%", minWidth: 1180, borderCollapse: "collapse", textAlign: "center", fontSize: 14 }}>
           <thead style={{ background: "#f7eff3", color: "#56364b" }}><tr>{["رقم الحجز","اسم العميلة","رقم التليفون","الخدمات","إجمالي الخدمات","الخصم","الصافي","التاريخ","الوقت","الحالة",...(manager ? ["الإجراءات"] : [])].map(h => <th key={h} style={{ padding: "13px 10px", whiteSpace: "nowrap", borderBottom: "1px solid #e8d9e1" }}>{h}</th>)}</tr></thead>
           <tbody>{visible.map(b => {
-            const c = customerOf(b), items = servicesOf(b), subtotal = items.reduce((n,x) => n+x.price,0), discount = Number(b.discount_amount || 0), net = Math.max(0,subtotal-discount), status = statusOf(b);
+            const c = customerOf(b), items = servicesOf(b), subtotal = items.reduce((n,x) => n+x.price,0), discount = Number(b.discount_amount || 0), net = Math.max(0,subtotal-discount);
             return <tr key={b.id} style={{ borderBottom: "1px solid #f0e8ed" }}>
               <td style={{ padding: 12, fontWeight: 700 }}>#{b.id}</td>
               <td style={{ padding: 12, fontWeight: 700, minWidth: 150 }}>{c?.full_name || "غير متاح"}</td>
@@ -132,7 +117,6 @@ function BookingsContent() {
               <td style={{ padding: 12, color: "#70445f", fontWeight: 700, whiteSpace: "nowrap" }}>{net.toLocaleString("ar-EG")} ج</td>
               <td style={{ padding: 12, whiteSpace: "nowrap" }}>{b.booking_date || "-"}</td>
               <td style={{ padding: 12, whiteSpace: "nowrap" }}>{String(b.booking_time || "").slice(0,5) || "-"}</td>
-              <td style={{ padding: 12 }}>{manager ? <select value={status} onChange={e => changeStatus(b.id,e.target.value)} style={{ padding: 8, border: "1px solid #d8c5cf", borderRadius: 8, background: status === "completed" ? "#edf8ef" : status === "cancelled" ? "#fff0f0" : "#fff8e9" }}><option value="pending">جديد</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select> : <span style={{ padding: "6px 10px", borderRadius: 20, background: status === "completed" ? "#edf8ef" : status === "cancelled" ? "#fff0f0" : "#fff8e9" }}>{statusName(status)}</span>}</td>
               {manager && <td style={{ padding: 10, minWidth: 155 }}><div style={{ display: "flex", justifyContent: "center", gap: 7, flexWrap: "wrap" }}><button type="button" onClick={() => beginEdit(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: "#70445f", cursor: "pointer", fontWeight: 700 }}>تعديل</button><button type="button" disabled={deleting === b.id} onClick={() => removeBooking(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: "#a83245", cursor: "pointer", opacity: deleting === b.id ? .6 : 1, fontWeight: 700 }}>{deleting === b.id ? "جارٍ الحذف" : "حذف"}</button></div></td>}
             </tr>;
           })}</tbody>
@@ -146,7 +130,6 @@ function BookingsContent() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
           <label>التاريخ<input type="date" value={draft.booking_date} onChange={e => setDraft({...draft,booking_date:e.target.value})} required style={field}/></label>
           <label>الوقت<input type="time" value={draft.booking_time} onChange={e => setDraft({...draft,booking_time:e.target.value})} required style={field}/></label>
-          <label>الحالة<select value={draft.status} onChange={e => setDraft({...draft,status:e.target.value})} style={field}><option value="pending">جديد</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select></label>
           <label>الخصم<input type="number" min="0" step="0.01" value={draft.discount} onChange={e => setDraft({...draft,discount:e.target.value})} style={field}/></label>
         </div>
         <div><strong>الخدمات والأسعار</strong><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 8, marginTop: 8 }}>{services.map(s => <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, border: "1px solid #ead5df", borderRadius: 8 }}><input type="checkbox" checked={draft.service_ids.includes(String(s.id))} onChange={e => setDraft({...draft,service_ids:e.target.checked ? [...draft.service_ids,String(s.id)] : draft.service_ids.filter(id => id !== String(s.id))})}/><span>{s.service_name} — {Number(s.price||0).toLocaleString("ar-EG")} جنيه</span></label>)}</div></div>
