@@ -104,7 +104,7 @@ function BookingsContent() {
       {!visible.length ? <div style={{ textAlign: "center", padding: 35, color: "#806b78" }}>{bookings.length ? "لا توجد نتائج مطابقة للبحث." : "لا توجد حجوزات مسجلة حتى الآن."}</div> :
       <div style={{ overflowX: "auto", border: "1px solid #eee4e9", borderRadius: 10 }}>
         <table style={{ width: "100%", minWidth: 1180, borderCollapse: "collapse", textAlign: "center", fontSize: 14 }}>
-          <thead style={{ background: "#f7eff3", color: "#56364b" }}><tr>{["رقم الحجز","اسم العميلة","رقم التليفون","الخدمات","إجمالي الخدمات","الخصم","الصافي","التاريخ","الوقت","الحالة",...(manager ? ["الإجراءات"] : [])].map(h => <th key={h} style={{ padding: "13px 10px", whiteSpace: "nowrap", borderBottom: "1px solid #e8d9e1" }}>{h}</th>)}</tr></thead>
+          <thead style={{ background: "#f7eff3", color: "#56364b" }}><tr>{["رقم الحجز","اسم العميلة","رقم التليفون","الخدمات","إجمالي الخدمات","الخصم","الصافي","التاريخ","الوقت",...(manager ? ["الإجراءات"] : [])].map(h => <th key={h} style={{ padding: "13px 10px", whiteSpace: "nowrap", borderBottom: "1px solid #e8d9e1" }}>{h}</th>)}</tr></thead>
           <tbody>{visible.map(b => {
             const c = customerOf(b), items = servicesOf(b), subtotal = items.reduce((n,x) => n+x.price,0), discount = Number(b.discount_amount || 0), net = Math.max(0,subtotal-discount);
             return <tr key={b.id} style={{ borderBottom: "1px solid #f0e8ed" }}>
