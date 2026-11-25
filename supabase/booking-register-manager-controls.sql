@@ -1,6 +1,6 @@
 -- Unified booking register: active users can read, managers alone can write.
 create policy customers_active_profiles_select on public.customers for select to authenticated using (private.current_profile_role() is not null);
-create policy services_active_profiles_select on public.services for select to authenticated using (private.current_profile_role() is not null and active = true);
+create policy services_active_profiles_select on public.services for select to authenticated using (private.current_profile_role() is not null);
 create policy bookings_active_profiles_select on public.bookings for select to authenticated using (private.current_profile_role() is not null);
 create policy booking_services_active_profiles_select on public.booking_services for select to authenticated using (private.current_profile_role() is not null);
 create policy booking_payments_active_profiles_select on public.booking_payments for select to authenticated using (private.current_profile_role() is not null);
