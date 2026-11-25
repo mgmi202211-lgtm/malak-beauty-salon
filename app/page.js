@@ -231,68 +231,6 @@ function Dashboard() {
         profit: todayRevenue - todayExpenses,
       });
 
-      // تجهيز أحدث خمسة حجوزات غير مكتملة
-      const latest = [...bookings]
-        .filter((booking) => booking.status !== "completed" && booking.status !== "cancelled")
-        .sort((a, b) =>
-          `${b.booking_date} ${b.booking_time || ""}`.localeCompare(
-            `${a.booking_date} ${a.booking_time || ""}`
-          )
-        )
-        .slice(0, 5)
-        .map((booking) => {
-          const customer = customersById.get(
-            String(booking.customer_id)
-          );
-
-          const savedServices =
-            bookingServicesByBookingId.get(String(booking.id)) || [];
-
-          const serviceNames = [];
-          let bookingTotal = 0;
-
-          if (savedServices.length > 0) {
-            savedServices.forEach((item) => {
-              const service = servicesById.get(
-                String(item.service_id)
-              );
-
-              serviceNames.push(
-                service?.service_name ||
-                  `خدمة رقم ${item.service_id}`
-              );
-
-              bookingTotal += Number(item.price || 0);
-            });
-          } else {
-            const service = servicesById.get(
-              String(booking.service_id)
-            );
-
-            serviceNames.push(
-              service?.service_name || "غير معروف"
-            );
-
-            bookingTotal = Number(service?.price || 0);
-          }
-
-          const discount = Number(booking.discount_amount || 0);
-          const netTotal = Math.max(0, bookingTotal - discount);
-          const paid = paymentsByBookingId.get(String(booking.id)) || 0;
-
-          return {
-            ...booking,
-            customerName: customer?.full_name || "غير معروف",
-            serviceName: serviceNames.join("، "),
-            bookingTotal,
-            discount,
-            netTotal,
-            paid,
-            remaining: Math.max(0, netTotal - paid),
-          };
-        });
-
-      setRecentBookings(latest);
     } catch (error) {
       console.error("Dashboard Error:", error);
       setErrorMessage(
