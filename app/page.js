@@ -971,7 +971,33 @@ function Dashboard() {
             padding: 15px !important;
           }
         }
-      `}</style>
+      
+        /* تحسين وضوح الخط على الموبايل والكمبيوتر */
+        .dashboard-main { font-size: 18px !important; line-height: 1.85 !important; }
+        .dashboard-main p, .dashboard-main label { font-size: 17px !important; line-height: 1.9 !important; }
+        .dashboard-main button, .dashboard-main input, .dashboard-main select, .dashboard-main textarea {
+          font-size: 17px !important; min-height: 48px !important;
+        }
+        .dashboard-main h2 { font-size: 25px !important; line-height: 1.55 !important; }
+        .dashboard-main h3 { font-size: 20px !important; line-height: 1.6 !important; }
+        .dashboard-main table th, .dashboard-main table td { font-size: 16px !important; line-height: 1.75 !important; }
+        .dashboard-main small { font-size: 14px !important; line-height: 1.7 !important; }
+        @media (max-width: 600px) {
+          .dashboard-main { font-size: 17px !important; line-height: 1.85 !important; }
+          .dashboard-main p, .dashboard-main label { font-size: 16px !important; }
+          .dashboard-main button, .dashboard-main input, .dashboard-main select, .dashboard-main textarea {
+            font-size: 16px !important; min-height: 48px !important;
+          }
+          .dashboard-main h2 { font-size: 22px !important; }
+          .dashboard-main h3 { font-size: 18px !important; }
+          .dashboard-main table th, .dashboard-main table td { font-size: 15px !important; }
+          .dashboard-header p { font-size: 15px !important; }
+          .dashboard-header > div:first-child { font-size: 13px !important; }
+          .dashboard-card-grid span { font-size: 14px !important; }
+          .dashboard-link h3 { font-size: 16px !important; }
+          .dashboard-link p { font-size: 14px !important; }
+        }
+`}</style>
 
       {/* رأس الصفحة */}
       <header
