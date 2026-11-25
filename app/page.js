@@ -63,7 +63,6 @@ function Dashboard() {
     profit: 0,
   });
 
-  const [recentBookings, setRecentBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -686,24 +685,6 @@ function Dashboard() {
     },
   ];
 
-  const statusInfo = {
-    pending: {
-      label: "جديد",
-      color: "#d6ad69",
-      background: "#fff5df",
-    },
-    completed: {
-      label: "مكتمل",
-      color: "#397451",
-      background: "#e8f7ed",
-    },
-    cancelled: {
-      label: "ملغي",
-      color: "#ad3545",
-      background: "#ffebee",
-    },
-  };
-
   const sectionStyle = {
     background: "#fff",
     border: "1px solid #ead9e2",
@@ -815,6 +796,68 @@ function Dashboard() {
         .invoice-grid > * {
           min-width: 0;
         }
+
+        .invoice-form-card {
+          background: linear-gradient(145deg,#3c2b3e,#302433);
+          border: 1px solid #80617a;
+          border-radius: 16px;
+          padding: 20px;
+          box-shadow: 0 5px 18px rgba(0,0,0,.16);
+        }
+
+        .invoice-form-card label {
+          color: #f1dfeb;
+          font-weight: 700;
+        }
+
+        .invoice-form-card input,
+        .invoice-form-card select,
+        .invoice-form-card textarea {
+          border: 1px solid #cdb7c7 !important;
+          border-radius: 11px !important;
+          background: #fff !important;
+          color: #382337 !important;
+          box-shadow: 0 2px 7px rgba(0,0,0,.08);
+        }
+
+        .invoice-section-heading {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          color: #f0d6a8;
+          margin: 0 0 16px;
+          padding-bottom: 11px;
+          border-bottom: 1px solid #765d70;
+        }
+
+        .invoice-details-card {
+          background: #fff;
+          color: #422536;
+          border: 1px solid #e6d3de;
+          border-radius: 16px;
+          padding: 20px;
+          box-shadow: 0 5px 18px rgba(0,0,0,.12);
+        }
+
+        .invoice-amount-card {
+          background: linear-gradient(145deg,#fbf5f8,#f3e6ee);
+          border: 1px solid #e6d3de;
+          border-radius: 13px;
+          padding: 17px;
+          min-height: 94px;
+        }
+
+        .invoice-net-card {
+          background: linear-gradient(135deg,#f8edda,#ead2a7);
+          border: 1px solid #d6b779;
+          border-radius: 13px;
+          padding: 17px;
+          min-height: 94px;
+        }
+
+        .invoice-items-table th { color: #70445f; font-weight: 800; }
+        .invoice-items-table td, .invoice-items-table th { padding: 14px 12px !important; }
+        .invoice-save-button { min-height: 56px !important; font-size: 19px !important; letter-spacing: .2px; box-shadow: 0 5px 15px rgba(184,139,74,.24); }
 
         .invoice-phone-row {
           display: flex;
@@ -1150,7 +1193,9 @@ function Dashboard() {
           </span>
         </div>
 
-        <form onSubmit={saveInvoice}>
+        <form onSubmit={saveInvoice} style={{ display: "grid", gap: "18px" }}>
+          <div className="invoice-form-card">
+          <h3 className="invoice-section-heading">👩 بيانات العميلة والموعد</h3>
           <div
             className="invoice-grid"
             style={{
@@ -1234,17 +1279,10 @@ function Dashboard() {
               />
             </div>
           </div>
+          </div>
 
-          <div
-            style={{
-              borderTop: "1px solid #60495d",
-              margin: "25px 0",
-              paddingTop: "22px",
-            }}
-          >
-            <h3 style={{ color: "#e6c58c", marginTop: 0 }}>
-              اختيار خدمات الفاتورة
-            </h3>
+          <div className="invoice-form-card">
+            <h3 className="invoice-section-heading">✂️ اختيار خدمات الفاتورة</h3>
 
             <div
               className="invoice-grid"
@@ -1364,26 +1402,8 @@ function Dashboard() {
           </div>
 
           {/* تفاصيل الفاتورة */}
-          <div
-            style={{
-              background: "#fff",
-              color: "#422536",
-              borderRadius: "14px",
-              padding: "18px",
-              marginBottom: "20px",
-              minWidth: 0,
-            }}
-          >
-            <h3
-              style={{
-                color: "#79445f",
-                marginTop: 0,
-                paddingBottom: "12px",
-                borderBottom: "1px solid #ead9e2",
-              }}
-            >
-              تفاصيل الفاتورة
-            </h3>
+          <div className="invoice-details-card">
+            <h3 style={{ color: "#70445f", margin: "0 0 16px", paddingBottom: "12px", borderBottom: "1px solid #ead9e2" }}>🧾 تفاصيل الفاتورة</h3>
 
             {selectedServices.length === 0 ? (
               <p style={{ color: "#9a8290", textAlign: "center" }}>
@@ -1391,14 +1411,7 @@ function Dashboard() {
               </p>
             ) : (
               <div className="dashboard-table-wrap">
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    textAlign: "right",
-                    minWidth: "350px",
-                  }}
-                >
+                <table className="invoice-items-table" style={{ width: "100%", borderCollapse: "collapse", textAlign: "right", minWidth: "350px" }}>
                   <thead>
                     <tr style={{ background: "#f8edf3" }}>
                       <th style={{ padding: "12px" }}>الخدمة</th>
@@ -1467,13 +1480,7 @@ function Dashboard() {
               }}
               className="invoice-grid"
             >
-              <div
-                style={{
-                  background: "#f8edf3",
-                  padding: "15px",
-                  borderRadius: "10px",
-                }}
-              >
+              <div className="invoice-amount-card">
                 <div style={{ color: "#79445f", fontSize: "14px" }}>
                   إجمالي الخدمات
                 </div>
@@ -1503,13 +1510,7 @@ function Dashboard() {
                 />
               </div>
 
-              <div
-                style={{
-                  background: "#f8edf3",
-                  padding: "15px",
-                  borderRadius: "10px",
-                }}
-              >
+              <div className="invoice-net-card">
                 <div style={{ color: "#79445f", fontSize: "14px" }}>
                   صافي الفاتورة بعد الخصم
                 </div>
@@ -1592,7 +1593,7 @@ function Dashboard() {
           <button
             type="submit"
             disabled={saving}
-            className="gold-button"
+            className="gold-button invoice-save-button"
             style={{
               width: "100%",
               padding: "16px",
@@ -1667,216 +1668,6 @@ function Dashboard() {
                 </h2>
               </div>
             ))}
-          </section>
-
-          {/* أحدث الحجوزات */}
-          <section
-            className="dashboard-section"
-            style={{
-              ...sectionStyle,
-              marginBottom: "28px",
-              color: "#422536",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "10px",
-                marginBottom: "18px",
-              }}
-            >
-              <div>
-                <h2 style={{ color: "#79445f", margin: "0 0 7px" }}>
-                  أحدث الحجوزات
-                </h2>
-
-                <span style={{ color: "#927d89", fontSize: "13px" }}>
-                  آخر خمسة حجوزات مسجلة
-                </span>
-              </div>
-
-              <Link
-                href="/bookings"
-                style={{
-                  color: "#922c5c",
-                  textDecoration: "none",
-                  fontWeight: "bold",
-                  fontSize: "14px",
-                }}
-              >
-                عرض كل الحجوزات ←
-              </Link>
-            </div>
-
-            {recentBookings.length === 0 ? (
-              <p style={{ color: "#927d89" }}>
-                لا توجد حجوزات حتى الآن
-              </p>
-            ) : (
-              <div className="dashboard-table-wrap">
-                <table
-                  className="dashboard-table"
-                  style={{
-                    width: "100%",
-                    minWidth: "950px",
-                    borderCollapse: "collapse",
-                    textAlign: "right",
-                  }}
-                >
-                  <thead style={{ background: "#f8e8ef" }}>
-                    <tr>
-                      {[
-                        "العميلة",
-                        "الخدمات",
-                        "الإجمالي",
-                        "الخصم",
-                        "صافي الفاتورة",
-                        "المدفوع",
-                        "المتبقي",
-                        "التاريخ",
-                        "الحالة",
-                      ].map((heading) => (
-                        <th
-                          key={heading}
-                          style={{
-                            padding: "14px 12px",
-                            color: "#81264f",
-                            fontSize: "14px",
-                          }}
-                        >
-                          {heading}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {recentBookings.map((booking) => {
-                      const displayStatus = booking.status === "confirmed" ? "pending" : booking.status;
-                      const status = statusInfo[displayStatus] || {
-                        label: displayStatus,
-                        color: "#555",
-                        background: "#eee",
-                      };
-
-                      return (
-                        <tr key={booking.id}>
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                            }}
-                          >
-                            {booking.customerName}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                              minWidth: "180px",
-                              lineHeight: "1.8",
-                            }}
-                          >
-                            {booking.serviceName}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {money(booking.bookingTotal)}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {money(booking.discount)}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                              color: "#397451",
-                              fontWeight: "bold",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {money(booking.netTotal)}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                              color: "#397451",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {money(booking.paid)}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                              color:
-                                booking.remaining > 0
-                                  ? "#ad3545"
-                                  : "#397451",
-                              fontWeight: "bold",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {money(booking.remaining)}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                            }}
-                          >
-                            {booking.booking_date}
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "14px 12px",
-                              borderBottom: "1px solid #f3e5eb",
-                            }}
-                          >
-                            <span
-                              style={{
-                                background: status.background,
-                                color: status.color,
-                                padding: "6px 11px",
-                                borderRadius: "20px",
-                                fontSize: "12px",
-                                fontWeight: "bold",
-                              }}
-                            >
-                              {status.label}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </section>
 
           {/* أقسام الإدارة */}
