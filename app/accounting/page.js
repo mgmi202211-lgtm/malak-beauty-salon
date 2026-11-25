@@ -437,7 +437,24 @@ function AccountingContent() {
         .booking-register-table tbody tr:hover { background: #fff1f6 !important; }
         .booking-register-table input:focus { outline: 2px solid #d9a2bb; border-color: #922c5c; }
         .booking-register button:disabled { cursor: not-allowed; }
+        /* تحسين وضوح الخط في شاشة الحسابات */
+        main { font-size: 18px !important; line-height: 1.8 !important; }
+        main p, main label { font-size: 17px !important; line-height: 1.9 !important; }
+        main button, main input, main select, main textarea { font-size: 16px !important; min-height: 46px; }
+        .accounting-table th, .accounting-table td { font-size: 16px !important; line-height: 1.75 !important; }
+        .payment-report h3 { font-size: 26px !important; line-height: 1.6 !important; }
+        .payment-report p { font-size: 16px !important; }
+        .payment-report th, .payment-report td { font-size: 16px !important; }
+        .payment-report span { font-size: 16px !important; }
         @media (max-width: 640px) {
+          main { padding: 14px !important; }
+          main h1 { font-size: 27px !important; }
+          main h2 { font-size: 23px !important; line-height: 1.6 !important; }
+          main h3 { font-size: 21px !important; line-height: 1.6 !important; }
+          .accounting-table th, .accounting-table td { font-size: 15px !important; padding: 12px 9px !important; }
+          .payment-report h3 { font-size: 22px !important; }
+          .payment-report { padding: 16px !important; }
+
           .payment-report { padding: 15px !important; }
           .payment-report h3 { font-size: 20px !important; }
           .payment-report .payment-method-table th,
