@@ -1,501 +1,160 @@
-
 "use client";
-
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
 import AuthGuard, { useSalonRole } from "../components/AuthGuard";
 
+const field = { display: "block", width: "100%", boxSizing: "border-box", padding: 11, marginTop: 6, border: "1px solid #d8c5cf", borderRadius: 9, fontSize: 15, background: "#fff" };
+
 function BookingsContent() {
   const { role } = useSalonRole();
+  const manager = role === "manager";
   const [customers, setCustomers] = useState([]);
   const [services, setServices] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [bookingServices, setBookingServices] = useState([]);
+  const [lines, setLines] = useState([]);
+  const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
-  const [editingBooking, setEditingBooking] = useState(null);
-  const [editDraft, setEditDraft] = useState(null);
-  const [savingEdit, setSavingEdit] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(null);
 
-  async function loadData() {
-    const [
-      customerResult,
-      serviceResult,
-      bookingResult,
-      bookingServicesResult,
-    ] = await Promise.all([
+  async function load() {
+    const [c, s, b, l] = await Promise.all([
       supabase.from("customers").select("*").order("full_name"),
       supabase.from("services").select("*"),
-      supabase.from("bookings").select("*").order("booking_date", {
-        ascending: false,
-      }),
-      supabase.from("booking_services").select("*"),
+      supabase.from("bookings").select("*").order("booking_date", { ascending: false }).order("booking_time", { ascending: false }),
+      supabase.from("booking_services").select("*")
     ]);
-
-    const error =
-      customerResult.error ||
-      serviceResult.error ||
-      bookingResult.error ||
-      bookingServicesResult.error;
-
-    if (error) {
-      setMessage("خطأ في تحميل البيانات: " + error.message);
-      return;
-    }
-
-    setCustomers(customerResult.data || []);
-    setServices(serviceResult.data || []);
-    setBookings(bookingResult.data || []);
-    setBookingServices(bookingServicesResult.data || []);
+    const error = c.error || s.error || b.error || l.error;
+    if (error) return setMessage("خطأ في تحميل البيانات: " + error.message);
+    setCustomers(c.data || []); setServices(s.data || []); setBookings(b.data || []); setLines(l.data || []);
   }
+  useEffect(() => { load(); }, []);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const statusOf = b => !b.status || b.status === "confirmed" ? "pending" : b.status;
+  const statusName = s => ({ pending: "جديد", completed: "مكتمل", cancelled: "ملغي" })[s] || s;
+  const customerOf = b => customers.find(c => String(c.id) === String(b.customer_id));
+  const servicesOf = b => {
+    const saved = lines.filter(x => String(x.booking_id) === String(b.id));
+    if (saved.length) return saved.map(x => ({ id: x.service_id, name: services.find(s => String(s.id) === String(x.service_id))?.service_name || ("خدمة رقم " + x.service_id), price: Number(x.price) || 0 }));
+    const old = services.find(s => String(s.id) === String(b.service_id));
+    return [{ id: b.service_id, name: old?.service_name || ("خدمة رقم " + b.service_id), price: Number(old?.price) || 0 }];
+  };
 
-  function startEditingBooking(booking) {
-    const saved = bookingServices
-      .filter((item) => String(item.booking_id) === String(booking.id))
-      .map((item) => String(item.service_id));
-    const serviceIds = saved.length ? saved : [String(booking.service_id)];
-
-    setEditingBooking(booking.id);
-    setEditDraft({
-      customer_id: String(booking.customer_id || ""),
-      booking_date: booking.booking_date || "",
-      booking_time: String(booking.booking_time || "").slice(0, 5),
-      status: getBookingStatus(booking),
-      notes: booking.notes || "",
-      discount_amount: String(booking.discount_amount || 0),
-      service_ids: serviceIds,
-    });
+  function beginEdit(b) {
+    if (!manager) return;
+    const saved = lines.filter(x => String(x.booking_id) === String(b.id)).map(x => String(x.service_id));
+    setEditing(b.id);
+    setDraft({ customer_id: String(b.customer_id || ""), booking_date: b.booking_date || "", booking_time: String(b.booking_time || "").slice(0, 5), status: statusOf(b), notes: b.notes || "", discount: String(b.discount_amount || 0), service_ids: saved.length ? saved : [String(b.service_id)] });
     setMessage("");
   }
 
-  async function saveBookingEdit(event) {
-    event.preventDefault();
-    if (!editingBooking || !editDraft) return;
+  async function saveEdit(e) {
+    e.preventDefault();
+    if (!manager || !editing || !draft) return;
+    const service_lines = draft.service_ids.map(id => services.find(s => String(s.id) === String(id))).filter(Boolean).map(s => ({ service_id: Number(s.id), price: Number(s.price || 0) }));
+    const subtotal = service_lines.reduce((n, x) => n + x.price, 0), discount = Number(draft.discount || 0);
+    if (!draft.customer_id || !draft.booking_date || !draft.booking_time) return setMessage("يرجى استكمال العميلة والتاريخ والوقت.");
+    if (!service_lines.length) return setMessage("يجب اختيار خدمة واحدة على الأقل.");
+    if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) return setMessage("قيمة الخصم غير صحيحة.");
+    setSaving(true);
+    const { error } = await supabase.rpc("manager_update_booking", { p_booking_id: Number(editing), p_customer_id: Number(draft.customer_id), p_booking_date: draft.booking_date, p_booking_time: draft.booking_time, p_status: draft.status, p_notes: draft.notes || "", p_discount_amount: discount, p_service_lines: service_lines });
+    setSaving(false);
+    if (error) return setMessage("تعذر حفظ التعديل: " + error.message);
+    setMessage("تم تعديل الحجز بنجاح."); setEditing(null); setDraft(null); await load();
+  }
 
-    const selectedLines = editDraft.service_ids
-      .map((id) => services.find((service) => String(service.id) === String(id)))
-      .filter(Boolean)
-      .map((service) => ({
-        service_id: Number(service.id),
-        price: Number(service.price || 0),
-      }));
+  async function removeBooking(b) {
+    if (!manager) return;
+    const customer = customerOf(b);
+    if (!window.confirm("تأكيد حذف الحجز رقم " + b.id + " للعميلة " + (customer?.full_name || "") + "؟ سيتم حذف سجل الإيراد والمدفوعات المرتبطة بهذا الحجز أيضًا، ولا يمكن التراجع.")) return;
+    setDeleting(b.id);
+    const { error } = await supabase.rpc("manager_delete_booking", { p_booking_id: Number(b.id) });
+    setDeleting(null);
+    if (error) return setMessage("تعذر حذف الحجز: " + error.message);
+    setMessage("تم حذف الحجز رقم " + b.id + " والسجلات المرتبطة به.");
+    if (String(editing) === String(b.id)) { setEditing(null); setDraft(null); }
+    await load();
+  }
 
-    const discount = Number(editDraft.discount_amount || 0);
-    const total = selectedLines.reduce((sum, line) => sum + line.price, 0);
+  async function changeStatus(id, status) {
+    if (!manager) return;
+    if (status === "completed" && !window.confirm("تأكيد اكتمال الخدمة؟ سيتم اعتماد الإيراد مرة واحدة.")) return;
+    const { error } = await supabase.from("bookings").update({ status }).eq("id", id);
+    if (error) return setMessage("تعذر تعديل الحالة: " + error.message);
+    setMessage("تم تحديث حالة الحجز."); await load();
+  }
 
-    if (!editDraft.customer_id || !editDraft.booking_date || !editDraft.booking_time) {
-      setMessage("يرجى استكمال العميلة والتاريخ والوقت.");
-      return;
-    }
-    if (selectedLines.length === 0) {
-      setMessage("يجب اختيار خدمة واحدة على الأقل.");
-      return;
-    }
-    if (!Number.isFinite(discount) || discount < 0 || discount > total) {
-      setMessage("قيمة الخصم غير صحيحة أو أكبر من إجمالي الخدمات.");
-      return;
-    }
-
-    setSavingEdit(true);
-    const { error } = await supabase.rpc("manager_update_booking", {
-      p_booking_id: Number(editingBooking),
-      p_customer_id: Number(editDraft.customer_id),
-      p_booking_date: editDraft.booking_date,
-      p_booking_time: editDraft.booking_time,
-      p_status: editDraft.status,
-      p_notes: editDraft.notes || "",
-      p_discount_amount: discount,
-      p_service_lines: selectedLines,
+  const visible = useMemo(() => {
+    const q = search.trim().toLocaleLowerCase("ar");
+    if (!q) return bookings;
+    return bookings.filter(b => {
+      const c = customers.find(x => String(x.id) === String(b.customer_id));
+      const names = lines.filter(x => String(x.booking_id) === String(b.id)).map(x => services.find(s => String(s.id) === String(x.service_id))?.service_name || "").join(" ");
+      return [b.id, c?.full_name, c?.phone, names].some(v => String(v || "").toLocaleLowerCase("ar").includes(q));
     });
-    setSavingEdit(false);
+  }, [bookings, customers, lines, services, search]);
 
-    if (error) {
-      setMessage("تعذر حفظ تعديل الحجز: " + error.message);
-      return;
-    }
+  const countCompleted = bookings.filter(b => statusOf(b) === "completed").length;
+  const countPending = bookings.filter(b => statusOf(b) === "pending").length;
 
-    setMessage("تم تعديل الحجز وتحديث إيراده في الحسابات.");
-    setEditingBooking(null);
-    setEditDraft(null);
-    await loadData();
-  }
-
-  async function updateStatus(id, status) {
-    const currentBooking = bookings.find(
-      (booking) => String(booking.id) === String(id)
-    );
-
-    // منع تعديل الحجز بعد اعتماده أو اعتماد حجز ملغي مباشرة
-    if (role !== "manager" && currentBooking && getBookingStatus(currentBooking) === "completed") {
-      setMessage("لا يمكن تغيير حالة حجز مكتمل.");
-      return;
-    }
-
-    if (role !== "manager" && currentBooking && getBookingStatus(currentBooking) === "cancelled" && status === "completed") {
-      setMessage("لا يمكن اعتماد حجز ملغي مباشرة. راجع حالته أولاً.");
-      return;
-    }
-
-    if (status === "completed" && !window.confirm("تأكيد اكتمال الخدمة؟ سيتم اعتماد إيرادها مرة واحدة في الحسابات.")) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from("bookings")
-      .update({ status })
-      .eq("id", id);
-
-    if (error) {
-      setMessage("تعذر تعديل حالة الحجز: " + error.message);
-    } else {
-      setMessage(status === "completed"
-        ? "تم اعتماد الخدمة وتسجيل إيرادها مرة واحدة."
-        : "تم تعديل حالة الحجز.");
-      await loadData();
-    }
-  }
-
-  function getBookingServices(booking) {
-    const savedServices = bookingServices.filter(
-      (item) => String(item.booking_id) === String(booking.id)
-    );
-
-    if (savedServices.length > 0) {
-      return savedServices.map((item) => {
-        const service = services.find(
-          (s) => String(s.id) === String(item.service_id)
-        );
-
-        return {
-          name: service?.service_name || `خدمة رقم ${item.service_id}`,
-          price: Number(item.price) || 0,
-        };
-      });
-    }
-
-    const oldService = services.find(
-      (item) => String(item.id) === String(booking.service_id)
-    );
-
-    return [
-      {
-        name: oldService?.service_name || `خدمة رقم ${booking.service_id}`,
-        price: Number(oldService?.price) || 0,
-      },
-    ];
-  }
-
-  // تقسيم الحجوزات حسب الحالة
-  const bookingGroups = [
-    {
-      status: "pending",
-      title: "الحجوزات الجديدة",
-      color: "#d97706",
-      background: "#fff7ed",
-    },
-    {
-      status: "completed",
-      title: "الحجوزات المكتملة",
-      color: "#15803d",
-      background: "#f0fdf4",
-    },
-    {
-      status: "cancelled",
-      title: "الحجوزات الملغاة",
-      color: "#b42336",
-      background: "#fef2f2",
-    },
-  ];
-
-  // توحيد عرض الحالة الفارغة باعتبارها حجزًا جديدًا
-  function getBookingStatus(booking) {
-    return !booking.status || booking.status === "confirmed" ? "pending" : booking.status;
-  }
-
-  function renderBookingTable(group) {
-    const groupBookings = bookings.filter(
-      (booking) => getBookingStatus(booking) === group.status
-    );
-
-    return (
-      <section
-        key={group.status}
-        style={{
-          marginTop: 30,
-          padding: 20,
-          border: `1px solid ${group.color}33`,
-          borderRadius: 14,
-          background: "white",
-          boxShadow: "0 3px 12px rgba(0,0,0,0.04)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 10,
-            marginBottom: 18,
-            padding: 12,
-            borderRadius: 10,
-            background: group.background,
-          }}
-        >
-          <h2
-            style={{
-              color: group.color,
-              margin: 0,
-              fontSize: 21,
-            }}
-          >
-            {group.title}
-          </h2>
-
-          <span
-            style={{
-              padding: "7px 15px",
-              background: group.color,
-              color: "white",
-              borderRadius: 20,
-              fontWeight: "bold",
-            }}
-          >
-            {groupBookings.length} حجز
-          </span>
+  return <main dir="rtl" style={{ maxWidth: 1500, margin: "24px auto", padding: "16px 20px 40px", fontFamily: "Arial,sans-serif", color: "#382337" }}>
+    <Link href="/" style={{ display: "inline-block", padding: "11px 18px", background: "#70445f", color: "white", textDecoration: "none", borderRadius: 9, marginBottom: 18, fontWeight: "bold" }}>← العودة إلى الصفحة الرئيسية</Link>
+    <header style={{ background: "linear-gradient(120deg,#382337,#70445f)", color: "white", padding: "22px 24px", borderRadius: 16 }}>
+      <div style={{ color: "#e6c58c", fontSize: 13, fontWeight: 700 }}>MALAK BEAUTY SALON</div>
+      <h1 style={{ margin: "7px 0", fontSize: 27 }}>سجل الحجوزات</h1>
+      <p style={{ margin: 0, color: "#f5eaf0" }}>كل الحجوزات في سجل واحد بكامل بيانات العميلة والخدمات والمواعيد.</p>
+    </header>
+    <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 12, margin: "18px 0" }}>
+      {[["إجمالي الحجوزات", bookings.length], ["حجوزات جديدة", countPending], ["حجوزات مكتملة", countCompleted]].map(x => <div key={x[0]} style={{ background: "white", border: "1px solid #eadde4", borderRadius: 12, padding: 15 }}><div style={{ color: "#76596b" }}>{x[0]}</div><strong style={{ display: "block", fontSize: 25, color: "#70445f", marginTop: 5 }}>{x[1]}</strong></div>)}
+    </section>
+    {message && <div role="status" style={{ padding: 13, background: "#fff4f7", color: "#70445f", border: "1px solid #ead2dd", borderRadius: 9, margin: "14px 0" }}>{message}</div>}
+    <section style={{ background: "white", border: "1px solid #eadde4", borderRadius: 14, padding: 16, marginTop: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <div><h2 style={{ margin: 0, fontSize: 21, color: "#70445f" }}>كل الحجوزات</h2><p style={{ margin: "6px 0 0", color: "#76596b" }}>عدد النتائج: {visible.length}</p></div>
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث باسم العميلة أو رقم الهاتف أو رقم الحجز أو الخدمة" aria-label="بحث في سجل الحجوزات" style={{ ...field, maxWidth: 430, marginTop: 0 }} />
+      </div>
+      {!visible.length ? <div style={{ textAlign: "center", padding: 35, color: "#806b78" }}>{bookings.length ? "لا توجد نتائج مطابقة للبحث." : "لا توجد حجوزات مسجلة حتى الآن."}</div> :
+      <div style={{ overflowX: "auto", border: "1px solid #eee4e9", borderRadius: 10 }}>
+        <table style={{ width: "100%", minWidth: 1180, borderCollapse: "collapse", textAlign: "center", fontSize: 14 }}>
+          <thead style={{ background: "#f7eff3", color: "#56364b" }}><tr>{["رقم الحجز","اسم العميلة","رقم التليفون","الخدمات","إجمالي الخدمات","الخصم","الصافي","التاريخ","الوقت","الحالة",...(manager ? ["الإجراءات"] : [])].map(h => <th key={h} style={{ padding: "13px 10px", whiteSpace: "nowrap", borderBottom: "1px solid #e8d9e1" }}>{h}</th>)}</tr></thead>
+          <tbody>{visible.map(b => {
+            const c = customerOf(b), items = servicesOf(b), subtotal = items.reduce((n,x) => n+x.price,0), discount = Number(b.discount_amount || 0), net = Math.max(0,subtotal-discount), status = statusOf(b);
+            return <tr key={b.id} style={{ borderBottom: "1px solid #f0e8ed" }}>
+              <td style={{ padding: 12, fontWeight: 700 }}>#{b.id}</td>
+              <td style={{ padding: 12, fontWeight: 700, minWidth: 150 }}>{c?.full_name || "غير متاح"}</td>
+              <td style={{ padding: 12, direction: "ltr", whiteSpace: "nowrap" }}>{c?.phone || "-"}</td>
+              <td style={{ padding: 12, textAlign: "right", minWidth: 190 }}>{items.map((x,i) => <div key={i} style={{ margin: "3px 0" }}>{x.name} <span style={{ color: "#806b78" }}>({x.price.toLocaleString("ar-EG")} ج)</span></div>)}</td>
+              <td style={{ padding: 12, whiteSpace: "nowrap" }}>{subtotal.toLocaleString("ar-EG")} ج</td>
+              <td style={{ padding: 12, whiteSpace: "nowrap" }}>{discount.toLocaleString("ar-EG")} ج</td>
+              <td style={{ padding: 12, color: "#70445f", fontWeight: 700, whiteSpace: "nowrap" }}>{net.toLocaleString("ar-EG")} ج</td>
+              <td style={{ padding: 12, whiteSpace: "nowrap" }}>{b.booking_date || "-"}</td>
+              <td style={{ padding: 12, whiteSpace: "nowrap" }}>{String(b.booking_time || "").slice(0,5) || "-"}</td>
+              <td style={{ padding: 12 }}>{manager ? <select value={status} onChange={e => changeStatus(b.id,e.target.value)} style={{ padding: 8, border: "1px solid #d8c5cf", borderRadius: 8, background: status === "completed" ? "#edf8ef" : status === "cancelled" ? "#fff0f0" : "#fff8e9" }}><option value="pending">جديد</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select> : <span style={{ padding: "6px 10px", borderRadius: 20, background: status === "completed" ? "#edf8ef" : status === "cancelled" ? "#fff0f0" : "#fff8e9" }}>{statusName(status)}</span>}</td>
+              {manager && <td style={{ padding: 10, minWidth: 155 }}><div style={{ display: "flex", justifyContent: "center", gap: 7, flexWrap: "wrap" }}><button type="button" onClick={() => beginEdit(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: "#70445f", cursor: "pointer", fontWeight: 700 }}>تعديل</button><button type="button" disabled={deleting === b.id} onClick={() => removeBooking(b)} style={{ border: 0, borderRadius: 7, padding: "8px 11px", color: "white", background: "#a83245", cursor: "pointer", opacity: deleting === b.id ? .6 : 1, fontWeight: 700 }}>{deleting === b.id ? "جارٍ الحذف" : "حذف"}</button></div></td>}
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>}
+    </section>
+    {manager && editing && draft && <section style={{ marginTop: 20, padding: 20, border: "1px solid #ead5df", borderRadius: 14, background: "#fffafd" }}>
+      <h2 style={{ color: "#70445f", marginTop: 0 }}>تعديل الحجز رقم {editing}</h2>
+      <form onSubmit={saveEdit} style={{ display: "grid", gap: 14 }}>
+        <label>العميلة<select value={draft.customer_id} onChange={e => setDraft({...draft,customer_id:e.target.value})} required style={field}><option value="">اختيار العميلة</option>{customers.map(c => <option key={c.id} value={c.id}>{c.full_name} — {c.phone}</option>)}</select></label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 }}>
+          <label>التاريخ<input type="date" value={draft.booking_date} onChange={e => setDraft({...draft,booking_date:e.target.value})} required style={field}/></label>
+          <label>الوقت<input type="time" value={draft.booking_time} onChange={e => setDraft({...draft,booking_time:e.target.value})} required style={field}/></label>
+          <label>الحالة<select value={draft.status} onChange={e => setDraft({...draft,status:e.target.value})} style={field}><option value="pending">جديد</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select></label>
+          <label>الخصم<input type="number" min="0" step="0.01" value={draft.discount} onChange={e => setDraft({...draft,discount:e.target.value})} style={field}/></label>
         </div>
-
-        {groupBookings.length === 0 ? (
-          <p
-            style={{
-              textAlign: "center",
-              color: "#777",
-              padding: 20,
-            }}
-          >
-            لا توجد حجوزات في هذا القسم
-          </p>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table
-              width="100%"
-              cellPadding="10"
-              style={{
-                borderCollapse: "collapse",
-                textAlign: "center",
-                background: "white",
-                minWidth: 850,
-              }}
-            >
-              <thead style={{ background: group.background }}>
-                <tr>
-                  <th>رقم الحجز</th>
-                  <th>كود العميلة</th>
-                  <th>الخدمات</th>
-                  <th>الإجمالي</th>
-                  <th>التاريخ</th>
-                  <th>الوقت</th>
-                  <th>الحالة</th>
-                  <th>الملاحظات</th>
-                  {role === "manager" && <th>الإجراءات</th>}
-                </tr>
-              </thead>
-
-              <tbody>
-                {groupBookings.map((booking) => {
-                  const customer = customers.find(
-                    (item) =>
-                      String(item.id) === String(booking.customer_id)
-                  );
-
-                  const items = getBookingServices(booking);
-
-                  const total = items.reduce(
-                    (sum, item) => sum + item.price,
-                    0
-                  );
-
-                  const isCompleted =
-                    getBookingStatus(booking) === "completed";
-
-                  return (
-                    <tr
-                      key={booking.id}
-                      style={{
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
-                      <td>{booking.id}</td>
-
-                      <td>
-                        {customer?.customer_code || booking.customer_id}
-                      </td>
-
-                      <td>
-                        {items.map((item, index) => (
-                          <div key={index}>
-                            {item.name}
-                          </div>
-                        ))}
-                      </td>
-
-                      <td>{total.toFixed(2)} جنيه</td>
-
-                      <td>{booking.booking_date}</td>
-
-                      <td>{booking.booking_time}</td>
-
-                      <td>
-                        <select
-                          value={getBookingStatus(booking)}
-                          disabled={role !== "manager"}
-                          onChange={(e) =>
-                            updateStatus(booking.id, e.target.value)
-                          }
-                          style={{
-                            padding: 8,
-                            minWidth: 110,
-                            borderRadius: 6,
-                            cursor: isCompleted ? "not-allowed" : "pointer",
-                            border: "1px solid #ddd",
-                            background: isCompleted ? "#e5e7eb" : "white",
-                            color: isCompleted ? "#15803d" : "#333",
-                            fontWeight: isCompleted ? "bold" : "normal",
-                            opacity: isCompleted ? 1 : 1,
-                          }}
-                        >
-                          <option value="pending">جديد</option>
-                          <option value="completed">مكتمل — اعتماد الإيراد</option>
-                          <option value="cancelled">ملغي</option>
-                        </select>
-                      </td>
-
-                      <td>{booking.notes || "-"}</td>
-                      {role === "manager" && (
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => startEditingBooking(booking)}
-                            style={{ padding: "8px 12px", border: "none", borderRadius: 7, background: "#9d174d", color: "white", cursor: "pointer", fontWeight: "bold" }}
-                          >
-                            تعديل الحجز
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    );
-  }
-
-  return (
-    <main
-      dir="rtl"
-      style={{
-        maxWidth: 1100,
-        margin: "30px auto",
-        padding: 20,
-        fontFamily: "Arial",
-        color: "#4a1932",
-      }}
-    >
-      <Link
-        href="/"
-        style={{
-          display: "inline-block",
-          padding: "12px 20px",
-          background: "#9d174d",
-          color: "white",
-          textDecoration: "none",
-          borderRadius: 8,
-          marginBottom: 20,
-          fontWeight: "bold",
-        }}
-      >
-        ← العودة إلى الصفحة الرئيسية
-      </Link>
-
-      <h1 style={{ color: "#9d174d" }}>
-        إدارة الحجوزات - صالون ملك
-      </h1>
-
-      <hr />
-
-      <h2>قائمة الحجوزات</h2>
-
-      <p style={{ fontWeight: "bold" }}>
-        إجمالي عدد الحجوزات: {bookings.length}
-      </p>
-
-      {message && (
-        <p
-          style={{
-            padding: 12,
-            background: "#fff0f6",
-            color: "#9d174d",
-            borderRadius: 8,
-            marginTop: 15,
-          }}
-        >
-          {message}
-        </p>
-      )}
-      {role === "manager" && editingBooking && editDraft && (
-        <section style={{ marginTop: 20, padding: 20, border: "1px solid #ead5df", borderRadius: 14, background: "#fffafd" }}>
-          <h2 style={{ color: "#9d174d", marginTop: 0 }}>تعديل الحجز رقم {editingBooking}</h2>
-          <form onSubmit={saveBookingEdit} style={{ display: "grid", gap: 14 }}>
-            <label>
-              العميلة
-              <select value={editDraft.customer_id} onChange={(e) => setEditDraft({ ...editDraft, customer_id: e.target.value })} required style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}>
-                <option value="">اختيار العميلة</option>
-                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name} — {customer.phone}</option>)}
-              </select>
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
-              <label>التاريخ<input type="date" value={editDraft.booking_date} onChange={(e) => setEditDraft({ ...editDraft, booking_date: e.target.value })} required style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
-              <label>الوقت<input type="time" value={editDraft.booking_time} onChange={(e) => setEditDraft({ ...editDraft, booking_time: e.target.value })} required style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
-              <label>الحالة<select value={editDraft.status} onChange={(e) => setEditDraft({ ...editDraft, status: e.target.value })} style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }}><option value="pending">جديد</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select></label>
-              <label>الخصم<input type="number" min="0" step="0.01" value={editDraft.discount_amount} onChange={(e) => setEditDraft({ ...editDraft, discount_amount: e.target.value })} style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
-            </div>
-            <div>
-              <strong>الخدمات والأسعار</strong>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 8, marginTop: 8 }}>
-                {services.map((service) => (
-                  <label key={service.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: 9, border: "1px solid #ead5df", borderRadius: 8 }}>
-                    <input type="checkbox" checked={editDraft.service_ids.includes(String(service.id))} onChange={(e) => setEditDraft({ ...editDraft, service_ids: e.target.checked ? [...editDraft.service_ids, String(service.id)] : editDraft.service_ids.filter((id) => id !== String(service.id))})} />
-                    <span>{service.service_name} — {Number(service.price || 0).toLocaleString("ar-EG")} جنيه</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <label>ملاحظات<textarea value={editDraft.notes} onChange={(e) => setEditDraft({ ...editDraft, notes: e.target.value })} rows={3} style={{ display: "block", width: "100%", padding: 10, marginTop: 6 }} /></label>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button type="submit" disabled={savingEdit} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#9d174d", color: "white", cursor: "pointer" }}>{savingEdit ? "جارٍ الحفظ..." : "حفظ كل التعديلات"}</button>
-              <button type="button" onClick={() => { setEditingBooking(null); setEditDraft(null); }} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#eee", cursor: "pointer" }}>إلغاء</button>
-            </div>
-          </form>
-        </section>
-      )}
-
-      {/* عرض الأقسام بالترتيب المحدد */}
-      {bookingGroups.map((group) => renderBookingTable(group))}
-    </main>
-  );
+        <div><strong>الخدمات والأسعار</strong><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 8, marginTop: 8 }}>{services.map(s => <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, border: "1px solid #ead5df", borderRadius: 8 }}><input type="checkbox" checked={draft.service_ids.includes(String(s.id))} onChange={e => setDraft({...draft,service_ids:e.target.checked ? [...draft.service_ids,String(s.id)] : draft.service_ids.filter(id => id !== String(s.id))})}/><span>{s.service_name} — {Number(s.price||0).toLocaleString("ar-EG")} جنيه</span></label>)}</div></div>
+        <label>ملاحظات<textarea value={draft.notes} onChange={e => setDraft({...draft,notes:e.target.value})} rows={3} style={field}/></label>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}><button type="submit" disabled={saving} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#70445f", color: "white", cursor: "pointer" }}>{saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}</button><button type="button" onClick={() => {setEditing(null);setDraft(null);}} style={{ padding: "12px 20px", border: 0, borderRadius: 8, background: "#eee", cursor: "pointer" }}>إلغاء</button></div>
+      </form>
+    </section>}
+    {!manager && <p style={{ marginTop: 14, color: "#76596b", fontSize: 13 }}>العرض فقط — تعديل الحجوزات أو حذفها متاح لحساب المدير فقط.</p>}
+  </main>;
 }
-
-export default function BookingsPage() {
-  return (
-    <AuthGuard>
-      <BookingsContent />
-    </AuthGuard>
-  );
-}
+export default function BookingsPage() { return <AuthGuard><BookingsContent /></AuthGuard>; }
